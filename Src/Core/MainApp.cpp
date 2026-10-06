@@ -11,6 +11,7 @@
 #include "OrdersDatabase.h"
 #include "PositionsDatabase.h"
 #include "DBClient.h"
+#include "SecureStorage.h"
 #include "Replay/OrderEmulator/OrderEmulator.h"
 #include <QCoreApplication>
 #include <QEventLoop>
@@ -1369,6 +1370,15 @@ MainApp::MainApp() : tradeStationClient(TSClient::getInstance()), mainAlgo(MainA
     QThread::currentThread()->setObjectName("GUI/Main Thread");
 
     appFrontend = new GUIFrontend(mainAlgo);
+    if (SecureStorage::activeBackend() == SecureStorage::Backend::YubiKey)
+    {
+        QObject::connect(
+            appFrontend,
+            &GUIFrontend::platformWindowPainted,
+            appFrontend,
+            [this]() { start(); },
+            Qt::QueuedConnection);
+    }
     // Connect memory usage updates to frontend
     QObject::connect(&memoryMonitor,
                      &MemoryMonitor::memoryUsageUpdated,
@@ -1459,6 +1469,15 @@ MainApp::~MainApp()
 
 void MainApp::start()
 {
+    if (SecureStorage::activeBackend() == SecureStorage::Backend::YubiKey)
+    {
+        QString error;
+        if (!SecureStorage::unlockYubiKey(error))
+        {
+            qWarning() << "Startup YubiKey unlock failed:" << error;
+            QMessageBox::warning(nullptr, "YubiKey unlock failed", error);
+        }
+    }
     // Start the database thread first (other threads may depend on it)
     DatabaseThread::getInstance()->start();
 
@@ -1820,10 +1839,7 @@ void MainApp::pauseReplayPlayback()
 
     qInfo() << "Pausing replay playback";
 
-    QMetaObject::invokeMethod(
-        mainAlgo,
-        [this]() { mainAlgo->pauseReplay(); },
-        Qt::QueuedConnection);
+    QMetaObject::invokeMethod(mainAlgo, [this]() { mainAlgo->pauseReplay(); }, Qt::QueuedConnection);
 }
 
 void MainApp::restartReplaySession(QDate p_date, QTime p_startTime, Playback::Speed p_speed)
@@ -1951,20 +1967,14 @@ void MainApp::resumeReplayPlayback()
 
     qInfo() << "Resuming replay playback";
 
-    QMetaObject::invokeMethod(
-        mainAlgo,
-        [this]() { mainAlgo->resumeReplay(); },
-        Qt::QueuedConnection);
+    QMetaObject::invokeMethod(mainAlgo, [this]() { mainAlgo->resumeReplay(); }, Qt::QueuedConnection);
 }
 
 void MainApp::setReplaySpeed(Playback::Speed p_speed)
 {
     persistReplayConfiguration(configuredReplayDate(), configuredReplayStartTime(), p_speed);
     appFrontend->onReplayConfigurationChanged(configuredReplayDate(), configuredReplayStartTime(), p_speed);
-    QMetaObject::invokeMethod(
-        mainAlgo,
-        [this, p_speed]() { mainAlgo->setReplaySpeed(p_speed); },
-        Qt::QueuedConnection);
+    QMetaObject::invokeMethod(mainAlgo, [this, p_speed]() { mainAlgo->setReplaySpeed(p_speed); }, Qt::QueuedConnection);
 }
 
 bool MainApp::isReplayPaused() const

@@ -995,9 +995,8 @@ GUIFrontend::GUIFrontend(MainAlgo* p_mainAlgo, QObject* parent) : QObject(parent
                 return;
             }
 
-            qInfo(GUIFrontendLog) << "Strategy requested chart symbol switch:"
-                                  << "strategyID=" << strategyID << "symbol=" << normalizedSymbol
-                                  << "reason=" << reason;
+            qInfo(GUIFrontendLog) << "Strategy requested chart symbol switch:" << "strategyID=" << strategyID
+                                  << "symbol=" << normalizedSymbol << "reason=" << reason;
             displayStock(normalizedSymbol);
         },
         Qt::QueuedConnection);
@@ -1371,6 +1370,44 @@ GUIFrontend::GUIFrontend(MainAlgo* p_mainAlgo, QObject* parent) : QObject(parent
             }
             updateBackendStatus();
         });
+    auto* resetYubiKeyButton = new QPushButton("Reset YubiKey vault and exit...", credentialsTab);
+    resetYubiKeyButton->setObjectName("resetYubiKeyVaultButton");
+    resetYubiKeyButton->setToolTip(
+        "Discard the local encrypted credentials after losing or reprogramming your key. "
+        "OS Keyring credentials are untouched. This is not a broker logout or token revocation.");
+    credentialsLayout->addWidget(resetYubiKeyButton, 0, Qt::AlignLeft);
+    connect(resetYubiKeyButton,
+            &QPushButton::clicked,
+            this,
+            [this]()
+            {
+                logInputEvent(u"GUIFrontend", u"request-reset-yubikey-vault");
+                const auto answer = QMessageBox::warning(
+                    m_mainWindow,
+                    "Reset YubiKey vault?",
+                    "Permanently delete ALL locally saved TradeStation credentials/tokens and the Databento API key "
+                    "in the YubiKey vault?\n\n"
+                    "This is useful after reprogramming Slot 2 or losing the original key. "
+                    "The old vault cannot be recovered without its original secret.\n\n"
+                    "The platform will close. On your next launch, unlock with your current key, log in to "
+                    "TradeStation and enter your Databento key again.\n\n"
+                    "OS Keyring credentials remain untouched. Broker-side tokens are not revoked, and "
+                    "existing orders or positions are NOT cancelled or closed.",
+                    QMessageBox::Yes | QMessageBox::Cancel,
+                    QMessageBox::Cancel);
+                if (answer != QMessageBox::Yes)
+                {
+                    return;
+                }
+                logInputEvent(u"GUIFrontend", u"confirm-reset-yubikey-vault");
+                QString error;
+                if (!SecureStorage::resetYubiKey(error))
+                {
+                    QMessageBox::warning(m_mainWindow, "YubiKey vault reset failed", error);
+                    return;
+                }
+                m_mainWindow->close();
+            });
     credentialsLayout->addWidget(m_connectivitySection, 0, Qt::AlignTop | Qt::AlignLeft);
     credentialsLayout->addStretch(1);
     const int configTabIndex = ui->tabWidget->indexOf(configTab);
@@ -2198,9 +2235,9 @@ void GUIFrontend::onDisplayRefreshTick()
                     if (!isStaleDisplayedPayload())
                     {
                         LTTnG_TP(opentraderplatform,
-                               gui_bar_received,
-                               sc->symbol.toUtf8().constData(),
-                               BarUtils::secondsPerBar(m_currentTimeFrame));
+                                 gui_bar_received,
+                                 sc->symbol.toUtf8().constData(),
+                                 BarUtils::secondsPerBar(m_currentTimeFrame));
                         ui->priceChart->addLiveBar(sc->symbol, bar);
                     }
 
@@ -2270,9 +2307,9 @@ void GUIFrontend::onPositionDeleted(QString account, QString positionID)
 void GUIFrontend::onNewOrderReceived(QString account, Order order)
 {
     LTTnG_TP(opentraderplatform,
-           gui_order_received,
-           order.getSymbol().toUtf8().constData(),
-           static_cast<int>(order.getOrderStatus()));
+             gui_order_received,
+             order.getSymbol().toUtf8().constData(),
+             static_cast<int>(order.getOrderStatus()));
 
     ui->orderWidget->updateOrder(account, order);
     maybeActivateManualArmedBracketFromOrderUpdate(order);
@@ -2582,37 +2619,36 @@ void GUIFrontend::onNewDisplayedStockSelection()
     const QString previousSymbol = currentlyDisplayedSymbol;
     TSClient::getInstance()
         ->getBars(symbol, 1, TSClient::BarUnit::Minute, 1, TSClient::BarSessionTemplate::USEQ24Hour)
-        .then(
-            this,
-            [this, symbol, previousSymbol, validationToken](
-                std::expected<std::shared_ptr<QVector<Bar>>, TSClient::Error> result)
-            {
-                if (validationToken != m_symbolSelectionValidationToken)
-                {
-                    return;
-                }
+        .then(this,
+              [this, symbol, previousSymbol, validationToken](
+                  std::expected<std::shared_ptr<QVector<Bar>>, TSClient::Error> result)
+              {
+                  if (validationToken != m_symbolSelectionValidationToken)
+                  {
+                      return;
+                  }
 
-                if (!result.has_value() && result.error() == TSClient::Error::RejectedByValidator)
-                {
-                    logInputEvent(u"GUIFrontend", u"reject-symbol-selection", {inputDetail(u"symbol", symbol)});
-                    QMessageBox::warning(nullptr,
-                                         "Unknown Symbol",
-                                         QString("Symbol '%1' was rejected by TradeStation.\n\n"
-                                                 "Keeping current symbol: %2")
-                                             .arg(symbol, previousSymbol.isEmpty() ? "<none>" : previousSymbol));
-                    if (!previousSymbol.isEmpty())
-                    {
-                        ui->stockSymbolInput->setText(previousSymbol);
-                    }
-                    ui->stockSymbolInput->setFocus();
-                    ui->stockSymbolInput->selectAll();
-                    return;
-                }
+                  if (!result.has_value() && result.error() == TSClient::Error::RejectedByValidator)
+                  {
+                      logInputEvent(u"GUIFrontend", u"reject-symbol-selection", {inputDetail(u"symbol", symbol)});
+                      QMessageBox::warning(nullptr,
+                                           "Unknown Symbol",
+                                           QString("Symbol '%1' was rejected by TradeStation.\n\n"
+                                                   "Keeping current symbol: %2")
+                                               .arg(symbol, previousSymbol.isEmpty() ? "<none>" : previousSymbol));
+                      if (!previousSymbol.isEmpty())
+                      {
+                          ui->stockSymbolInput->setText(previousSymbol);
+                      }
+                      ui->stockSymbolInput->setFocus();
+                      ui->stockSymbolInput->selectAll();
+                      return;
+                  }
 
-                // Non-validation failures (timeouts/transient API issues) should not block symbol switch.
-                displayStock(symbol);
-                ui->stockSymbolInput->clearFocus();
-            });
+                  // Non-validation failures (timeouts/transient API issues) should not block symbol switch.
+                  displayStock(symbol);
+                  ui->stockSymbolInput->clearFocus();
+              });
 }
 
 void GUIFrontend::displayStock(const QString& symbol)
@@ -3871,8 +3907,8 @@ void GUIFrontend::onManagedBracketProtectionDropped(const QString& p_accountID,
     const QString reason =
         p_reason.trimmed().isEmpty() ? QStringLiteral("Native bracket placement failed.") : p_reason.trimmed();
 
-    qCWarning(GUIFrontendLog) << "Managed bracket protection dropped:"
-                              << "symbol=" << symbol << "account=" << accountID << "reason=" << reason;
+    qCWarning(GUIFrontendLog) << "Managed bracket protection dropped:" << "symbol=" << symbol << "account=" << accountID
+                              << "reason=" << reason;
 
     QMessageBox::warning(nullptr,
                          "Managed Bracket Dropped",
@@ -5197,6 +5233,12 @@ void GUIFrontend::onTradingModeConfigured(const TradingMode p_mode)
 
 bool GUIFrontend::eventFilter(QObject* p_watched, QEvent* p_event)
 {
+    if (p_watched == m_mainWindow && p_event->type() == QEvent::Paint && !m_platformWindowPainted)
+    {
+        m_platformWindowPainted = true;
+        // Defer delivery until the paint event has finished.
+        QTimer::singleShot(0, this, [this]() { emit platformWindowPainted(); });
+    }
     if (p_event->type() == QEvent::KeyPress && m_mainWindow->isVisible() && m_mainWindow->isActiveWindow())
     {
         auto* keyEvent = static_cast<QKeyEvent*>(p_event);

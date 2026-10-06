@@ -317,7 +317,8 @@ TSClient::openStreamMarketDepthAggregate(const QString& symbol, unsigned int dep
 
     if (!StreamMarketDepthAggregate::canOpenStream())
     {
-        INFO << "Market depth stream limit reached (" << StreamMarketDepthAggregate::getNumberOfMarketDepthAggregateStreams() << "/"
+        INFO << "Market depth stream limit reached ("
+             << StreamMarketDepthAggregate::getNumberOfMarketDepthAggregateStreams() << "/"
              << MarketDepthConstants::MAX_CONCURRENT_STREAMS << ") - queuing request for" << symbol;
 
         QPromise<QPointer<StreamMarketDepthAggregate>> promise;

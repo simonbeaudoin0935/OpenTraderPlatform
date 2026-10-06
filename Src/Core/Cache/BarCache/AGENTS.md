@@ -4,6 +4,24 @@ The BarCache system provides efficient two-tier (memory + disk) caching for hist
 
 ## Overview
 
+### Current-day restart backfill
+
+Current-day cache presence is not proof of freshness. Live warmup captures the
+last saved closed candle before starting streams. If that snapshot is older than
+the latest completed interval, historical loading requests from the saved candle
+(inclusive overlap) through the current time, or from session open for an empty
+cache. New live candles cannot move a pending restart anchor.
+
+Concurrent chart requests wait for the same backfill and read their own requested
+range after completion. Failed fetches remain retryable. Successful responses
+track verified coverage, including legitimate no-trade intervals. Current-day
+intraday aggregates are rebuilt from the refreshed minute cache rather than
+trusting older derived database rows.
+
+Only the requested historical range is hole-filled and persisted. Null
+placeholders never replace real cached bars, and an open historical candle cannot
+replace a closed live candle. Bars outside the backfilled tail remain untouched.
+
 **Location**: `Src/Core/Cache/BarCache/`
 **Purpose**: Cache and persist bar data for fast retrieval and historical analysis
 **Thread Safety**: Yes - uses QReadWriteLock for concurrent access

@@ -213,13 +213,7 @@ void PositionWidget::setupUI()
 
     // Setup model columns (Position ID at END like OrderWidget)
     QStringList headers;
-    headers << "Symbol"
-            << "Quantity"
-            << "Avg Price"
-            << "Last"
-            << "Unrealized P/L"
-            << "Realized P/L"
-            << "Market Value"
+    headers << "Symbol" << "Quantity" << "Avg Price" << "Last" << "Unrealized P/L" << "Realized P/L" << "Market Value"
             << "Position ID";
     model->setHorizontalHeaderLabels(headers);
 

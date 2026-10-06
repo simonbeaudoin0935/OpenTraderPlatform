@@ -649,6 +649,12 @@ void StockPriceChart::onRequestedMissingBarsFailed(const QString& p_symbol, uint
     m_currentMissingBarsRequestToken.store(0);
     stopLoadingSpinner();
 
+    if (!MainApp::isInReplayMode() && !MainApp::isInReviewMode() && !TSClient::getInstance()->isAuthenticated())
+    {
+        showChartStatusMessage("TradeStation authentication required - reconnect in Credentials");
+        return;
+    }
+
     // Record the failed date as a known-empty day (holiday or non-trading day)
     if (m_lastRequestedDate.isValid())
     {
@@ -768,6 +774,11 @@ void StockPriceChart::showChartStatusMessage(const QString& p_message)
 void StockPriceChart::checkForMissingBars(const QDateTime& viewStartTime, const QDateTime& viewEndTime)
 {
     Q_UNUSED(viewEndTime);
+
+    if (!MainApp::isInReplayMode() && !MainApp::isInReviewMode() && !TSClient::getInstance()->isAuthenticated())
+    {
+        return;
+    }
 
     if (m_isReplayNoDataState)
     {
@@ -931,11 +942,11 @@ void StockPriceChart::checkForMissingBars(const QDateTime& viewStartTime, const 
     startLoadingSpinner();
 
     LTTnG_TP(opentraderplatform,
-           chart_missing_bars_request,
-           m_symbol.toUtf8().constData(),
-           static_cast<int>(m_displayTimeFrame),
-           requestStartTime.toString(Qt::ISODate).toUtf8().constData(),
-           requestEndTime.toString(Qt::ISODate).toUtf8().constData());
+             chart_missing_bars_request,
+             m_symbol.toUtf8().constData(),
+             static_cast<int>(m_displayTimeFrame),
+             requestStartTime.toString(Qt::ISODate).toUtf8().constData(),
+             requestEndTime.toString(Qt::ISODate).toUtf8().constData());
 
     emit requestMissingBars(m_symbol, requestStartTime, requestEndTime, requestToken);
 }

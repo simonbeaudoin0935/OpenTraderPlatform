@@ -63,9 +63,10 @@ class BarCache : public QObject
 
     std::optional<std::unique_ptr<QVector<Bar>>>
     getBarsFromCache(TimeFrame tf, const QDate& date, const QTime& start, const QTime& end) const;
-    [[nodiscard]] bool
-    wasCurrentDayTailBackfillAttemptedForAnchor(TimeFrame tf, const QDate& date, const QDateTime& latestClosed) const;
-    void markCurrentDayTailBackfillAttemptForAnchor(TimeFrame tf, const QDate& date, const QDateTime& latestClosed);
+    [[nodiscard]] std::optional<QDateTime> currentDayBackfillStart(TimeFrame tf,
+                                                                   const QDate& date,
+                                                                   const QDateTime& now,
+                                                                   const QVector<Bar>* savedBars = nullptr);
 
     void storeBarInCache(TimeFrame tf, const Bar& bar);
     void prefillNullBarsThrough(TimeFrame tf, const QDate& date, const QTime& lastInclusive);
@@ -92,8 +93,9 @@ class BarCache : public QObject
     // Vector indices map to bar slots within a trading day per BarUtils::barsPerDay(tf).
     QMap<TimeFrame, QMap<QDate, QVector<Bar>>> m_barCacheByTimeFrame;
 
-    // Tracks the latest-closed anchor timestamp we already used to force a current-day
-    // historical tail backfill, so we don't re-trigger fetches for the same stale state.
-    QMap<TimeFrame, QMap<QDate, QDateTime>> m_lastCurrentDayTailBackfillAnchorByTimeFrame;
+    QMap<TimeFrame, QMap<QDate, QDateTime>> m_currentDayBackfillStartByTimeFrame;
+    QMap<TimeFrame, QMap<QDate, QDateTime>> m_currentDayHistoryVerifiedThroughByTimeFrame;
+    QMap<TimeFrame, QMap<QDate, QFuture<std::expected<std::shared_ptr<QVector<Bar>>, TSClient::Error>>>>
+        m_currentDayHistoryRequests;
     QFuture<bool> m_openDatabaseFuture;
 };

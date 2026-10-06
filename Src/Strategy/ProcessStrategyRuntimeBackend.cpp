@@ -1213,7 +1213,8 @@ void ProcessStrategyRuntimeBackend::drainInboundSocket()
         std::copy_n(rawData, prefix.size(), prefix.begin());
 
         const std::uint32_t payloadSize = OpenTraderPlatform::StrategySDK::decodeFrameSize(prefix);
-        const qsizetype totalFrameSize = static_cast<qsizetype>(OpenTraderPlatform::StrategySDK::kFramePrefixSize + payloadSize);
+        const qsizetype totalFrameSize =
+            static_cast<qsizetype>(OpenTraderPlatform::StrategySDK::kFramePrefixSize + payloadSize);
         if (m_receiveBuffer.size() < totalFrameSize)
         {
             return;

@@ -19,10 +19,9 @@ namespace OpenTraderPlatform::StrategySDK
         return fieldIt == p_configuration.custom_params().fields().end() ? nullptr : &fieldIt->second;
     }
 
-    [[nodiscard]] inline std::string
-    stringFieldOr(const Protocol::StrategyConfiguration& p_configuration,
-                  std::string_view p_key,
-                  std::string_view p_fallback)
+    [[nodiscard]] inline std::string stringFieldOr(const Protocol::StrategyConfiguration& p_configuration,
+                                                   std::string_view p_key,
+                                                   std::string_view p_fallback)
     {
         const google::protobuf::Value* const value = findConfiguredField(p_configuration, p_key);
         if (value == nullptr || value->kind_case() != google::protobuf::Value::kStringValue)

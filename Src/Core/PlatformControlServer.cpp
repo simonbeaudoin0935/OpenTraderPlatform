@@ -94,35 +94,36 @@ void PlatformControlServer::handleNewConnection()
                          this,
                          [this, guardedSocket]()
                          {
-                            if (guardedSocket.isNull())
-                            {
-                                return;
-                            }
+                             if (guardedSocket.isNull())
+                             {
+                                 return;
+                             }
 
-                            handleSocketReadyRead(guardedSocket.get());
+                             handleSocketReadyRead(guardedSocket.get());
                          });
         QObject::connect(socket,
                          &QLocalSocket::disconnected,
                          this,
                          [this, guardedSocket]()
                          {
-                            if (guardedSocket.isNull())
-                            {
-                                return;
-                            }
+                             if (guardedSocket.isNull())
+                             {
+                                 return;
+                             }
 
-                            handleSocketDisconnected(guardedSocket.get());
+                             handleSocketDisconnected(guardedSocket.get());
                          });
         QObject::connect(socket,
                          &QLocalSocket::errorOccurred,
                          this,
-                         [guardedSocket](const QLocalSocket::LocalSocketError p_error) {
-                            if (guardedSocket.isNull())
-                            {
-                                return;
-                            }
+                         [guardedSocket](const QLocalSocket::LocalSocketError p_error)
+                         {
+                             if (guardedSocket.isNull())
+                             {
+                                 return;
+                             }
 
-                            qWarning() << "Platform control client socket error" << p_error << ":"
+                             qWarning() << "Platform control client socket error" << p_error << ":"
                                         << guardedSocket->errorString();
                          });
     }

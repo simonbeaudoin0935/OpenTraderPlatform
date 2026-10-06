@@ -834,8 +834,7 @@ void OrderEntryWidget::refreshOrderRoutes()
                 qInfo() << "OrderEntryWidget received" << p_result->size() << "routes from getOrderRoutes()";
                 for (const OrderRoute& route: p_result.value())
                 {
-                    qInfo() << "Order route candidate:"
-                            << "id=" << route.getId() << "name=" << route.getName()
+                    qInfo() << "Order route candidate:" << "id=" << route.getId() << "name=" << route.getName()
                             << "assetTypes=" << route.getAssetTypes();
                 }
 

@@ -190,8 +190,8 @@ Order::Order(const QJsonObject& jsonObj, bool isUpdate_) : m_isUpdate(isUpdate_)
             else
             {
                 // Unknown combination - this should not happen with valid TradeStation API data
-                qWarning() << "Order: Unknown BuyOrSell/OpenOrClose combination:"
-                           << "BuyOrSell=" << buyOrSell << "OpenOrClose=" << openOrClose;
+                qWarning() << "Order: Unknown BuyOrSell/OpenOrClose combination:" << "BuyOrSell=" << buyOrSell
+                           << "OpenOrClose=" << openOrClose;
                 m_tradeAction = buyOrSell + " " + openOrClose;
                 // ASSERT: This combination should be recognized
                 ASSUME_TRUE(false); // Force crash to expose unknown combinations

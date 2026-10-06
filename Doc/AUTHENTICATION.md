@@ -274,6 +274,11 @@ with fresh random nonces on every atomic write. The version/challenge/nonce
 header is authenticated. The challenge remains stable for the vault so the
 cached session key can save refreshed tokens without another touch.
 
+At startup in YubiKey mode, the platform window is painted first, then the modal
+unlock prompt appears. Client credential loading and worker startup follow that
+unlock attempt. Cancellation or failure leaves credentials locked; the platform
+still starts, and **Unlock / retry YubiKey** remains available in Credentials.
+
 One unlock authorizes both TradeStation and Databento credential storage for the
 session. The encryption key and decrypted credentials remain in process memory;
 removing the device does not disconnect services, block orders, or prevent
@@ -285,6 +290,25 @@ Failed unlocks are not automatically retried by each credential read. Use
 Wrong keys, damaged files, missing software, cancellation, and timeouts are
 reported. Losing the key or reprogramming Slot 2 may make the vault unrecoverable.
 The old branch's `L2Trader/Tokens.ini.enc` format is not migrated.
+
+After losing or reprogramming a key, use **Reset YubiKey vault and exit...** in
+Credentials. The confirmation defaults to Cancel. Reset deletes the entire local
+vault (both TradeStation and Databento), requires no working key or decryption,
+clears the storage session and blocks further reads/writes until restart. A
+deletion failure is reported without clearing the session. The platform closes
+through its normal window-close workflow; restart and authenticate both services
+again using the new key. OS Keyring credentials remain untouched. This is not
+broker-side token revocation, order cancellation, position closure, or a guarantee
+of forensic secure erasure.
+
+When credentials are unavailable (including failed YubiKey unlocks), the live
+TradeStation network manager rejects API requests locally without opening a
+network connection. Chart backfill pauses instead of repeatedly retrying or
+marking authentication failures as empty trading days, and resumes on successful
+authentication. Token refresh remains allowed with valid client/refresh credentials,
+but an authentication rejection stops its automatic retry loop. Interactive OAuth
+login uses its separate authentication client; replay's local order emulation is
+not gated by broker authentication.
 
 Qt6Keychain is mandatory in all builds and supplies the default OS Keyring backend.
 TradeStation credentials/tokens and the Databento API key use the backend active

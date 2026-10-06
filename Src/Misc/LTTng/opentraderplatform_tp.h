@@ -202,10 +202,16 @@ TRACEPOINT_EVENT(opentraderplatform,
                                ctf_integer(int, queue_depth, queue_depth)))
 
 /** Fired when a QRunnable is submitted to the global thread pool for a SymbolContext. */
-TRACEPOINT_EVENT(opentraderplatform, symbolctx_pool_submit, TP_ARGS(const char*, symbol), TP_FIELDS(ctf_string(symbol, symbol)))
+TRACEPOINT_EVENT(opentraderplatform,
+                 symbolctx_pool_submit,
+                 TP_ARGS(const char*, symbol),
+                 TP_FIELDS(ctf_string(symbol, symbol)))
 
 /** Fired at the top of SymbolContext::drain() — a pool thread begins processing. */
-TRACEPOINT_EVENT(opentraderplatform, symbolctx_drain_start, TP_ARGS(const char*, symbol), TP_FIELDS(ctf_string(symbol, symbol)))
+TRACEPOINT_EVENT(opentraderplatform,
+                 symbolctx_drain_start,
+                 TP_ARGS(const char*, symbol),
+                 TP_FIELDS(ctf_string(symbol, symbol)))
 
 /** Fired at exit of SymbolContext::drain() — pool thread done, queue empty. */
 TRACEPOINT_EVENT(opentraderplatform,
@@ -220,10 +226,16 @@ TRACEPOINT_EVENT(opentraderplatform,
                  TP_FIELDS(ctf_string(symbol, symbol)))
 
 /** Fired before processTrade() call inside the drain loop. */
-TRACEPOINT_EVENT(opentraderplatform, symbolctx_process_trade, TP_ARGS(const char*, symbol), TP_FIELDS(ctf_string(symbol, symbol)))
+TRACEPOINT_EVENT(opentraderplatform,
+                 symbolctx_process_trade,
+                 TP_ARGS(const char*, symbol),
+                 TP_FIELDS(ctf_string(symbol, symbol)))
 
 /** Fired in SymbolContext destructor while waiting for drain to finish. */
-TRACEPOINT_EVENT(opentraderplatform, symbolctx_shutdown_wait, TP_ARGS(const char*, symbol), TP_FIELDS(ctf_string(symbol, symbol)))
+TRACEPOINT_EVENT(opentraderplatform,
+                 symbolctx_shutdown_wait,
+                 TP_ARGS(const char*, symbol),
+                 TP_FIELDS(ctf_string(symbol, symbol)))
 
 /* ------------------------------------------------------------------
  * DBClient — replay tick
@@ -264,10 +276,16 @@ TRACEPOINT_EVENT(opentraderplatform,
                  TP_FIELDS(ctf_string(symbol, symbol) ctf_integer(int, tf_seconds, tf_seconds)))
 
 /** Fired when GUIFrontend dispatches a Level2 update to widgets (onCurrentHighlightedReceivedNewLevel2). */
-TRACEPOINT_EVENT(opentraderplatform, gui_level2_received, TP_ARGS(const char*, symbol), TP_FIELDS(ctf_string(symbol, symbol)))
+TRACEPOINT_EVENT(opentraderplatform,
+                 gui_level2_received,
+                 TP_ARGS(const char*, symbol),
+                 TP_FIELDS(ctf_string(symbol, symbol)))
 
 /** Fired when GUIFrontend dispatches a trade to TimeAndSales (onCurrentHighlightedReceivedNewTrade). */
-TRACEPOINT_EVENT(opentraderplatform, gui_trade_received, TP_ARGS(const char*, symbol), TP_FIELDS(ctf_string(symbol, symbol)))
+TRACEPOINT_EVENT(opentraderplatform,
+                 gui_trade_received,
+                 TP_ARGS(const char*, symbol),
+                 TP_FIELDS(ctf_string(symbol, symbol)))
 
 /** Fired when GUIFrontend receives an order update (onNewOrderReceived). */
 TRACEPOINT_EVENT(opentraderplatform,
@@ -276,7 +294,10 @@ TRACEPOINT_EVENT(opentraderplatform,
                  TP_FIELDS(ctf_string(symbol, symbol) ctf_integer(int, status, status)))
 
 /** Fired when GUIFrontend receives a position update (onNewPositionReceived). */
-TRACEPOINT_EVENT(opentraderplatform, gui_position_received, TP_ARGS(const char*, symbol), TP_FIELDS(ctf_string(symbol, symbol)))
+TRACEPOINT_EVENT(opentraderplatform,
+                 gui_position_received,
+                 TP_ARGS(const char*, symbol),
+                 TP_FIELDS(ctf_string(symbol, symbol)))
 
 /* ------------------------------------------------------------------
  * GUI — chart rendering

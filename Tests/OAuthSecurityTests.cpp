@@ -158,6 +158,40 @@ class OAuthSecurityTests : public QObject
         QVERIFY(SecureStorage::configureBackend(SecureStorage::Backend::OSKeyring));
         QCOMPARE(SecureStorage::configuredBackend(), SecureStorage::Backend::OSKeyring);
         QCOMPARE(SecureStorage::activeBackend(), SecureStorage::Backend::YubiKey);
+        vault.close();
+        QVERIFY2(SecureStorage::resetYubiKey(unlockError), qPrintable(unlockError));
+        QVERIFY(!QFile::exists(YubiKeyStorage::filePath()));
+        QVERIFY(!storage.storeValuesSync("TradeStation", {{"refresh_token", "must-not-return"}}));
+        QVERIFY(!SecureStorage::unlockYubiKey(unlockError));
+        QVERIFY(unlockError.contains("Restart"));
+        QVERIFY(!QFile::exists(YubiKeyStorage::filePath()));
+        QVERIFY2(SecureStorage::resetYubiKey(unlockError), qPrintable(unlockError));
+    }
+
+    void yubiKeyLockedReset()
+    {
+        if (!qEnvironmentVariableIsSet("OTP_TEST_YUBIKEY"))
+        {
+            QSKIP("Run in the dedicated simulated-YubiKey process");
+        }
+        const QString path = YubiKeyStorage::filePath();
+        QVERIFY(QDir().mkpath(path));
+        QString error;
+        QVERIFY(!SecureStorage::resetYubiKey(error));
+        QVERIFY(!error.isEmpty());
+        QVERIFY(QDir(path).exists());
+        QVERIFY(QDir().rmdir(path));
+        QFile vault(path);
+        QVERIFY(vault.open(QIODevice::WriteOnly));
+        QCOMPARE(vault.write("unreadable-vault"), qint64(16));
+        vault.close();
+        SecureStorage storage;
+        QVERIFY(storage.retrieveValuesSync("TradeStation", {"refresh_token"}).value("refresh_token").isEmpty());
+        QVERIFY(QFile::exists(path));
+        QVERIFY2(SecureStorage::resetYubiKey(error), qPrintable(error));
+        QVERIFY(!QFile::exists(path));
+        QVERIFY(!storage.storeValuesSync("Databento", {{"api_key", "must-not-return"}}));
+        QVERIFY(!QFile::exists(path));
     }
 
     void refreshTokenSelection_data()

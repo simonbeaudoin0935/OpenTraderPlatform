@@ -40,6 +40,12 @@ class MainApp : public QObject {
    - Start memory monitoring (500ms interval)
 7. Enter Qt event loop
 
+In YubiKey mode, constructors defer credential reads. After the GUI's first
+paint, a queued `MainApp::start()` unlocks the vault on the GUI thread before
+starting the workers. TradeStation loads its credentials when its thread starts;
+Databento's queued credential reload runs afterward. Failed unlocks still allow
+the platform to start, with retry available in Credentials.
+
 **Shutdown Sequence**:
 1. User initiates quit (Ctrl+Q or window close)
 2. Stop timers and streams

@@ -35,33 +35,29 @@ namespace OpenTraderPlatform::StrategySDK
         std::vector<StrategyFieldDefinition> parameterSchema;
     };
 
-    [[nodiscard]] StrategyFieldDefinition
-    stringField(std::string p_key,
-                std::string p_label,
-                std::string p_defaultValue = {},
-                std::string p_description = {},
-                bool p_required = false);
+    [[nodiscard]] StrategyFieldDefinition stringField(std::string p_key,
+                                                      std::string p_label,
+                                                      std::string p_defaultValue = {},
+                                                      std::string p_description = {},
+                                                      bool p_required = false);
 
-    [[nodiscard]] StrategyFieldDefinition
-    intField(std::string p_key,
-             std::string p_label,
-             std::int64_t p_defaultValue = 0,
-             std::string p_description = {},
-             bool p_required = false);
+    [[nodiscard]] StrategyFieldDefinition intField(std::string p_key,
+                                                   std::string p_label,
+                                                   std::int64_t p_defaultValue = 0,
+                                                   std::string p_description = {},
+                                                   bool p_required = false);
 
-    [[nodiscard]] StrategyFieldDefinition
-    doubleField(std::string p_key,
-                std::string p_label,
-                double p_defaultValue = 0.0,
-                std::string p_description = {},
-                bool p_required = false);
+    [[nodiscard]] StrategyFieldDefinition doubleField(std::string p_key,
+                                                      std::string p_label,
+                                                      double p_defaultValue = 0.0,
+                                                      std::string p_description = {},
+                                                      bool p_required = false);
 
-    [[nodiscard]] StrategyFieldDefinition
-    boolField(std::string p_key,
-              std::string p_label,
-              bool p_defaultValue = false,
-              std::string p_description = {},
-              bool p_required = false);
+    [[nodiscard]] StrategyFieldDefinition boolField(std::string p_key,
+                                                    std::string p_label,
+                                                    bool p_defaultValue = false,
+                                                    std::string p_description = {},
+                                                    bool p_required = false);
 
     [[nodiscard]] std::optional<std::string> validateStrategyDescription(const StrategyDescription& p_description);
 

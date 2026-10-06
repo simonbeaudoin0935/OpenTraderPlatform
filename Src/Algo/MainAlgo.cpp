@@ -1038,31 +1038,30 @@ void MainAlgo::subscribeLiveSymbol(SymbolContext* p_symbolContext)
             DEBUG << "Priming current-day historical bars for" << p_symbolContext->symbol << "from"
                   << TradingHours::TIME_FIRST_CANDLE_EARLY_PRE_MARKET_SESSION << "to" << prefetchLastTime;
 
-            auto barsResult = p_symbolContext->barCache.getBars(TimeFrame::ONE_MINUTE,
-                                                                currentDate,
-                                                                TradingHours::TIME_FIRST_CANDLE_EARLY_PRE_MARKET_SESSION,
-                                                                prefetchLastTime);
+            auto barsResult =
+                p_symbolContext->barCache.getBars(TimeFrame::ONE_MINUTE,
+                                                  currentDate,
+                                                  TradingHours::TIME_FIRST_CANDLE_EARLY_PRE_MARKET_SESSION,
+                                                  prefetchLastTime);
 
             if (std::holds_alternative<QFuture<std::expected<std::shared_ptr<QVector<Bar>>, TSClient::Error>>>(
                     barsResult))
             {
                 std::get<QFuture<std::expected<std::shared_ptr<QVector<Bar>>, TSClient::Error>>>(barsResult)
-                    .then(
-                        this,
-                        [symbol = p_symbolContext->symbol](std::expected<std::shared_ptr<QVector<Bar>>,
-                                                                  TSClient::Error> p_result)
-                        {
-                            if (!p_result.has_value())
-                            {
-                                qCWarning(LOGGING_CATEGORY)
-                                    << "Current-day historical prefetch failed for" << symbol
-                                    << "error=" << tsClientErrorToString(p_result.error());
-                                return;
-                            }
+                    .then(this,
+                          [symbol = p_symbolContext->symbol](
+                              std::expected<std::shared_ptr<QVector<Bar>>, TSClient::Error> p_result)
+                          {
+                              if (!p_result.has_value())
+                              {
+                                  qCWarning(LOGGING_CATEGORY) << "Current-day historical prefetch failed for" << symbol
+                                                              << "error=" << tsClientErrorToString(p_result.error());
+                                  return;
+                              }
 
-                            qCDebug(LOGGING_CATEGORY) << "Current-day historical prefetch complete for" << symbol
-                                                      << "bars=" << p_result.value()->size();
-                        });
+                              qCDebug(LOGGING_CATEGORY) << "Current-day historical prefetch complete for" << symbol
+                                                        << "bars=" << p_result.value()->size();
+                          });
             }
 
             p_symbolContext->m_liveCurrentDayHistoryPrefetchIssued = true;
@@ -1086,37 +1085,36 @@ void MainAlgo::subscribeLiveSymbol(SymbolContext* p_symbolContext)
             return;
         }
 
-        connect(
-            p_symbolContext->m_streamBars,
-            &Stream::streamClosed,
-            this,
-            [this, symbol](Stream::StreamError p_reason, const QString& p_message)
-            {
-                if (p_reason == Stream::StreamError::Closed)
+        connect(p_symbolContext->m_streamBars,
+                &Stream::streamClosed,
+                this,
+                [this, symbol](Stream::StreamError p_reason, const QString& p_message)
                 {
-                    return;
-                }
-
-                WARNING << "Bars stream closed for" << symbol << "reason=" << static_cast<int>(p_reason)
-                        << "message=" << p_message;
-
-                QMetaObject::invokeMethod(
-                    this,
-                    [this, symbol]()
+                    if (p_reason == Stream::StreamError::Closed)
                     {
-                        QReadLocker lock(&m_symbolContextsLock);
-                        QPointer<SymbolContext> sc = m_symbolContexts.value(symbol);
-                        lock.unlock();
-                        if (sc.isNull())
-                        {
-                            return;
-                        }
+                        return;
+                    }
 
-                        sc->m_streamBars = nullptr;
-                        subscribeLiveSymbol(sc);
-                    },
-                    Qt::QueuedConnection);
-            });
+                    WARNING << "Bars stream closed for" << symbol << "reason=" << static_cast<int>(p_reason)
+                            << "message=" << p_message;
+
+                    QMetaObject::invokeMethod(
+                        this,
+                        [this, symbol]()
+                        {
+                            QReadLocker lock(&m_symbolContextsLock);
+                            QPointer<SymbolContext> sc = m_symbolContexts.value(symbol);
+                            lock.unlock();
+                            if (sc.isNull())
+                            {
+                                return;
+                            }
+
+                            sc->m_streamBars = nullptr;
+                            subscribeLiveSymbol(sc);
+                        },
+                        Qt::QueuedConnection);
+                });
     };
 
     const auto attachDepthStream = [this, symbol](QPointer<StreamMarketDepthAggregate> p_stream)
@@ -1139,37 +1137,36 @@ void MainAlgo::subscribeLiveSymbol(SymbolContext* p_symbolContext)
         }
 
         sc->m_streamMarketDepthAggregate = p_stream;
-        connect(
-            p_stream,
-            &Stream::streamClosed,
-            this,
-            [this, symbol](Stream::StreamError p_reason, const QString& p_message)
-            {
-                if (p_reason == Stream::StreamError::Closed)
+        connect(p_stream,
+                &Stream::streamClosed,
+                this,
+                [this, symbol](Stream::StreamError p_reason, const QString& p_message)
                 {
-                    return;
-                }
-
-                WARNING << "Level2 stream closed for" << symbol << "reason=" << static_cast<int>(p_reason)
-                        << "message=" << p_message;
-
-                QMetaObject::invokeMethod(
-                    this,
-                    [this, symbol]()
+                    if (p_reason == Stream::StreamError::Closed)
                     {
-                        QReadLocker lock(&m_symbolContextsLock);
-                        QPointer<SymbolContext> symbolContext = m_symbolContexts.value(symbol);
-                        lock.unlock();
-                        if (symbolContext.isNull())
-                        {
-                            return;
-                        }
+                        return;
+                    }
 
-                        symbolContext->m_streamMarketDepthAggregate = nullptr;
-                        subscribeLiveSymbol(symbolContext);
-                    },
-                    Qt::QueuedConnection);
-            });
+                    WARNING << "Level2 stream closed for" << symbol << "reason=" << static_cast<int>(p_reason)
+                            << "message=" << p_message;
+
+                    QMetaObject::invokeMethod(
+                        this,
+                        [this, symbol]()
+                        {
+                            QReadLocker lock(&m_symbolContextsLock);
+                            QPointer<SymbolContext> symbolContext = m_symbolContexts.value(symbol);
+                            lock.unlock();
+                            if (symbolContext.isNull())
+                            {
+                                return;
+                            }
+
+                            symbolContext->m_streamMarketDepthAggregate = nullptr;
+                            subscribeLiveSymbol(symbolContext);
+                        },
+                        Qt::QueuedConnection);
+                });
     };
 
     const auto ensureDepthStream = [this, tsClient, p_symbolContext, attachDepthStream, symbol]()
@@ -1208,37 +1205,36 @@ void MainAlgo::subscribeLiveSymbol(SymbolContext* p_symbolContext)
             return;
         }
 
-        connect(
-            p_symbolContext->m_streamQuote,
-            &Stream::streamClosed,
-            this,
-            [this, symbol](Stream::StreamError p_reason, const QString& p_message)
-            {
-                if (p_reason == Stream::StreamError::Closed)
+        connect(p_symbolContext->m_streamQuote,
+                &Stream::streamClosed,
+                this,
+                [this, symbol](Stream::StreamError p_reason, const QString& p_message)
                 {
-                    return;
-                }
-
-                WARNING << "Quote stream closed for" << symbol << "reason=" << static_cast<int>(p_reason)
-                        << "message=" << p_message;
-
-                QMetaObject::invokeMethod(
-                    this,
-                    [this, symbol]()
+                    if (p_reason == Stream::StreamError::Closed)
                     {
-                        QReadLocker lock(&m_symbolContextsLock);
-                        QPointer<SymbolContext> sc = m_symbolContexts.value(symbol);
-                        lock.unlock();
-                        if (sc.isNull())
-                        {
-                            return;
-                        }
+                        return;
+                    }
 
-                        sc->m_streamQuote = nullptr;
-                        subscribeLiveSymbol(sc);
-                    },
-                    Qt::QueuedConnection);
-            });
+                    WARNING << "Quote stream closed for" << symbol << "reason=" << static_cast<int>(p_reason)
+                            << "message=" << p_message;
+
+                    QMetaObject::invokeMethod(
+                        this,
+                        [this, symbol]()
+                        {
+                            QReadLocker lock(&m_symbolContextsLock);
+                            QPointer<SymbolContext> sc = m_symbolContexts.value(symbol);
+                            lock.unlock();
+                            if (sc.isNull())
+                            {
+                                return;
+                            }
+
+                            sc->m_streamQuote = nullptr;
+                            subscribeLiveSymbol(sc);
+                        },
+                        Qt::QueuedConnection);
+                });
     };
 
     ensureBarStream();
@@ -2637,8 +2633,7 @@ void MainAlgo::requestBalance()
             if (!invoked)
             {
                 qCWarning(MainAlgoLog)
-                    << "MainAlgo"
-                    << "Dropping balance response: failed to dispatch continuation to MainAlgo thread";
+                    << "MainAlgo" << "Dropping balance response: failed to dispatch continuation to MainAlgo thread";
             }
         });
 }
@@ -3713,9 +3708,8 @@ void MainAlgo::processClosePositions(const QString& p_strategyID,
         deferred.promise = p_promise;
         m_deferredClosePositionsRequests.enqueue(std::move(deferred));
 
-        INFO << "Queued close positions request until replay resumes:"
-             << "account=" << resolvedAccountId << "symbols=" << p_request.symbols
-             << "queued=" << m_deferredClosePositionsRequests.size();
+        INFO << "Queued close positions request until replay resumes:" << "account=" << resolvedAccountId
+             << "symbols=" << p_request.symbols << "queued=" << m_deferredClosePositionsRequests.size();
         return;
     }
 
@@ -3801,8 +3795,7 @@ void MainAlgo::processClosePositions(const QString& p_strategyID,
         return;
     }
 
-    INFO << "Close positions request:"
-         << "account=" << resolvedAccountId << "positions=" << matchingPositions.size()
+    INFO << "Close positions request:" << "account=" << resolvedAccountId << "positions=" << matchingPositions.size()
          << "session=" << initialResult.session
          << "mode=" << closePositionsExecutionModeToString(initialResult.executionMode)
          << "symbols=" << initialResult.requestedSymbols;
@@ -4222,9 +4215,8 @@ void MainAlgo::processPlaceOrderWithUserConfirmation(
     {
         const QString reason =
             QStringLiteral("User blocked manual confirmations for this symbol with the Shift+N shortcut");
-        WARNING << "Rejected strategy manual order request for user-blocked symbol."
-                << "strategyID=" << p_strategyID << "requestID=" << strategyRequestID << "symbol=" << requestedSymbol
-                << "reason=" << reason;
+        WARNING << "Rejected strategy manual order request for user-blocked symbol." << "strategyID=" << p_strategyID
+                << "requestID=" << strategyRequestID << "symbol=" << requestedSymbol << "reason=" << reason;
         if (m_strategyManager != nullptr)
         {
             m_strategyManager->publishManualOrderDecision(p_strategyID,
@@ -5252,7 +5244,10 @@ void MainAlgo::onReplayTimeReceived(const QDateTime& time)
     if (!m_currentDisplayedSymbolContext)
         return;
 
-    LTTnG_TP(opentraderplatform, snapshot_write, m_currentDisplayedSymbolContext->symbol.toUtf8().constData(), "replayTime");
+    LTTnG_TP(opentraderplatform,
+             snapshot_write,
+             m_currentDisplayedSymbolContext->symbol.toUtf8().constData(),
+             "replayTime");
     QWriteLocker lock(&m_currentDisplayedSymbolContext->m_displaySnapshot.lock);
     m_currentDisplayedSymbolContext->m_displaySnapshot.replayTime = time;
     m_currentDisplayedSymbolContext->m_displaySnapshot.replayTimeDirty = true;
@@ -6043,8 +6038,8 @@ void MainAlgo::processStrategyChartDisplaySwitchRequest(const QString& p_strateg
         return;
     }
 
-    INFO << "Accepted strategy chart-display switch request."
-         << "strategyID=" << p_strategyID << "fromSymbol=" << currentSymbol << "toSymbol=" << symbol
+    INFO << "Accepted strategy chart-display switch request." << "strategyID=" << p_strategyID
+         << "fromSymbol=" << currentSymbol << "toSymbol=" << symbol
          << "reason=" << (reason.isEmpty() ? QStringLiteral("<none>") : reason);
 
     emit strategyDisplaySymbolRequested(p_strategyID, symbol, reason);

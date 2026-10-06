@@ -257,7 +257,7 @@ namespace CredentialStorageConstants
     inline constexpr int PROCESS_TIMEOUT_MS = 30000;
     inline constexpr int MAX_VAULT_BYTES = 1024 * 1024;
     inline constexpr int VAULT_PREFIX_SIZE = 8 + CHALLENGE_SIZE + IV_SIZE + TAG_SIZE;
-}
+} // namespace CredentialStorageConstants
 
 /**
  * @namespace ChartConstants

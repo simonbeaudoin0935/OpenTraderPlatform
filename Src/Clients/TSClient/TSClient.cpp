@@ -14,6 +14,8 @@
 #include "CONSTANTS.h"
 #include "MainApp.h"
 #include "ThreadNames.h"
+#include "SecureStorage.h"
+#include "AuthenticatedNetworkAccessManager.h"
 
 #define LOGGING_CATEGORY TSClientLog
 
@@ -69,22 +71,13 @@ TSClient::~TSClient()
         Qt::BlockingQueuedConnection);
 
     // Process events to delete Streams (while QNetworkAccessManager still valid)
-    QMetaObject::invokeMethod(
-        this,
-        []() { QCoreApplication::processEvents(); },
-        Qt::BlockingQueuedConnection);
+    QMetaObject::invokeMethod(this, []() { QCoreApplication::processEvents(); }, Qt::BlockingQueuedConnection);
 
     // Now delete QNetworkAccessManager after all Streams are gone
-    QMetaObject::invokeMethod(
-        this,
-        [this]() { m_networkManager->deleteLater(); },
-        Qt::BlockingQueuedConnection);
+    QMetaObject::invokeMethod(this, [this]() { m_networkManager->deleteLater(); }, Qt::BlockingQueuedConnection);
 
     // Process final deleteLater
-    QMetaObject::invokeMethod(
-        this,
-        []() { QCoreApplication::processEvents(); },
-        Qt::BlockingQueuedConnection);
+    QMetaObject::invokeMethod(this, []() { QCoreApplication::processEvents(); }, Qt::BlockingQueuedConnection);
 
     // Now safe to stop thread (all objects deleted in correct order)
     m_thread.quit();
@@ -99,7 +92,27 @@ TSClient::~TSClient()
 }
 
 TSClient::TSClient()
-    : m_authenticated(false), m_refreshInProgress(false), m_networkManager(new QNetworkAccessManager(this))
+    : m_authenticated(false)
+    , m_refreshInProgress(false)
+    , m_networkManager(new AuthenticatedNetworkAccessManager(
+          [this](const QNetworkRequest& p_request)
+          {
+              if (p_request.url() == buildRefreshTokenRequest().url())
+              {
+                  return m_clientToken.isValid() && m_authToken.isValid() && !m_authInProgress;
+              }
+              const bool authorized =
+                  m_authenticated && !m_apiKey.isEmpty() && m_authToken.isValid() && !m_authToken.isExpired();
+              if (!authorized && m_authenticated)
+              {
+                  m_authenticated = false;
+                  emit authStateChanged(false,
+                                        AuthStateReason::Connecting,
+                                        "TradeStation requests paused pending authentication or token refresh");
+              }
+              return authorized;
+          },
+          this))
 {
     m_thread.setObjectName("TSClientThread");
     this->moveToThread(&m_thread);
@@ -113,6 +126,18 @@ TSClient::TSClient()
 
     qInfo() << "TSClient connecting to:" << m_baseUrl.host();
 
+    if (SecureStorage::activeBackend() == SecureStorage::Backend::YubiKey)
+    {
+        connect(&m_thread, &QThread::started, this, &TSClient::loadStartupCredentials);
+    }
+    else
+    {
+        loadStartupCredentials();
+    }
+}
+
+void TSClient::loadStartupCredentials()
+{
     m_clientToken = ClientToken::loadFromSettings();
     m_authToken = AuthToken::loadFromSettings();
 
@@ -199,12 +224,6 @@ QNetworkRequest TSClient::buildNetworkRequest(const QString& endpoint, const QUr
 {
     OBJ_ASSUME_FALSE(m_baseUrl.isEmpty());
     // In replay mode the mock network manager handles the request without real credentials
-    if (m_mode != Mode::Replay && m_apiKey.isEmpty())
-    {
-        qCWarning(TSClientLog) << "buildNetworkRequest called while API key is empty; request may fail until "
-                                  "authentication completes. endpoint="
-                               << endpoint;
-    }
     OBJ_ASSUME_FALSE(endpoint.isEmpty());
     // Ensure no unformatted parameters remain
     OBJ_ASSUME_FALSE(endpoint.contains(QRegularExpression("%\\d+")));

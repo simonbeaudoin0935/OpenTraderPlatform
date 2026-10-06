@@ -37,20 +37,18 @@ namespace DatabaseThreadQueries
         "FROM bars WHERE timescale = ? AND date = ? AND [index] >= ? AND [index] <= ? "
         "ORDER BY [index]";
 
-    const QString SELECT_BARS_BY_TIMESCALE_AND_DATE =
-        "SELECT [index], open, high, low, close, volume, status "
-        "FROM bars WHERE timescale = ? AND date = ? "
-        "ORDER BY [index]";
+    const QString SELECT_BARS_BY_TIMESCALE_AND_DATE = "SELECT [index], open, high, low, close, volume, status "
+                                                      "FROM bars WHERE timescale = ? AND date = ? "
+                                                      "ORDER BY [index]";
 
     const QString INSERT_OR_REPLACE_BAR = "INSERT OR REPLACE INTO bars "
                                           "(timescale, date, [index], open, high, low, close, volume, status) "
                                           "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)";
 
-    const QString SELECT_LATEST_CLOSED_BAR_INDEX_FOR_DATE =
-        "SELECT [index] FROM bars "
-        "WHERE timescale = ? AND date = ? AND status = ? "
-        "ORDER BY [index] DESC "
-        "LIMIT 1";
+    const QString SELECT_LATEST_CLOSED_BAR_INDEX_FOR_DATE = "SELECT [index] FROM bars "
+                                                            "WHERE timescale = ? AND date = ? AND status = ? "
+                                                            "ORDER BY [index] DESC "
+                                                            "LIMIT 1";
 
     const QString DELETE_ALL_BARS = "DELETE FROM bars";
 

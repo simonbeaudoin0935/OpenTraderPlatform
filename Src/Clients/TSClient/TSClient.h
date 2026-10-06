@@ -382,6 +382,7 @@ class TSClient final : public QObject
     [[nodiscard]] QNetworkRequest buildNetworkRequest(const QString& endpoint,
                                                       const QUrlQuery& query = QUrlQuery()) const;
     void scheduleNextRefreshFromCurrentToken(const char* p_context);
+    void loadStartupCredentials();
 
 
     // Auth and refresh stuff implemented in TSClientRefreshToken.cpp
@@ -394,9 +395,9 @@ class TSClient final : public QObject
     AuthToken m_authToken;
     ClientToken m_clientToken;
 
-    bool m_authenticated = false;     // Track authentication state
-    bool m_refreshInProgress = false; // Track if authentication process is in progress
-    bool m_authInProgress = false;    // Track if authentication process is in progress
+    std::atomic<bool> m_authenticated{false}; // Read by GUI/MainAlgo; written on the client thread
+    bool m_refreshInProgress = false;         // Track if authentication process is in progress
+    bool m_authInProgress = false;            // Track if authentication process is in progress
     std::atomic<bool> m_shuttingDown{false};
 
     QUrl m_baseUrl;

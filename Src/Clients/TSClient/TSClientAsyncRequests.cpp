@@ -363,10 +363,9 @@ TSClient::getBars(const QString& symbol,
                             const QString error = obj.value("Error").toString();
                             const QString message = obj.value("Message").toString();
                             const QString normalizedMessage = message.trimmed().toLower();
-                            const bool isInvalidSymbol =
-                                error.compare("BadRequest", Qt::CaseInsensitive) == 0 &&
-                                (normalizedMessage.contains("invalid symbol") ||
-                                 normalizedMessage.contains("symbol cannot be found"));
+                            const bool isInvalidSymbol = error.compare("BadRequest", Qt::CaseInsensitive) == 0 &&
+                                                         (normalizedMessage.contains("invalid symbol") ||
+                                                          normalizedMessage.contains("symbol cannot be found"));
 
                             if (isInvalidSymbol)
                             {
@@ -375,8 +374,8 @@ TSClient::getBars(const QString& symbol,
                                 break;
                             }
 
-                            CRITICAL << "getBars failed (protocol invalid op):" << reply->errorString() << reply->error()
-                                     << "raw=" << rawData;
+                            CRITICAL << "getBars failed (protocol invalid op):" << reply->errorString()
+                                     << reply->error() << "raw=" << rawData;
                             promise.addResult(std::unexpected(Error::Other));
                             break;
                         }
@@ -789,8 +788,7 @@ QFuture<std::expected<QVector<OrderRoute>, TSClient::Error>> TSClient::getOrderR
                             INFO << "getOrderRoutes() succeeded with" << routes.size() << "routes";
                             for (const OrderRoute& route: routes)
                             {
-                                INFO << "Route:"
-                                     << "id=" << route.getId() << "name=" << route.getName()
+                                INFO << "Route:" << "id=" << route.getId() << "name=" << route.getName()
                                      << "assetTypes=" << route.getAssetTypes();
                             }
 

@@ -77,6 +77,21 @@ bool SecureStorage::unlockYubiKey(QString& p_error)
     return YubiKeyStorage::unlock(p_error);
 }
 
+bool SecureStorage::resetYubiKey(QString& p_error)
+{
+    ASSUME_EQUAL(QThread::currentThread(), QCoreApplication::instance()->thread());
+    const bool success = YubiKeyStorage::reset(p_error);
+    if (!success)
+    {
+        qCWarning(secureStorage) << "YubiKey vault reset failed:" << p_error;
+    }
+    else
+    {
+        qCInfo(secureStorage) << "YubiKey vault reset; credential storage disabled until restart";
+    }
+    return success;
+}
+
 SecureStorage::Result SecureStorage::runYubiKeyJob(const QString& p_service,
                                                    const QString& p_key,
                                                    const QString& p_value,

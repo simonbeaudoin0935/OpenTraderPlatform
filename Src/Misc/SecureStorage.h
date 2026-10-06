@@ -32,6 +32,7 @@ class SecureStorage : public QObject
     static Backend configuredBackend();
     [[nodiscard]] static bool configureBackend(Backend p_backend);
     [[nodiscard]] static bool unlockYubiKey(QString& p_error);
+    [[nodiscard]] static bool resetYubiKey(QString& p_error);
     static QString backendName();
 
     /**

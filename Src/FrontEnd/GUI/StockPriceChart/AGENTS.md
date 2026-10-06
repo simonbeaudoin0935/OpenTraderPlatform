@@ -872,7 +872,7 @@ The chart supports multiple timeframes (1m, 5m, 15m, 30m, 1h, 4h, 1d, 1w, 1M) wi
 
 **Manual Selection** (Toolbar dropdown or keyboard shortcuts):
 - `1` = 1-minute
-- `2` = 5-minute  
+- `2` = 5-minute
 - `3` = 15-minute
 - `4` = 30-minute
 - `5` = 1-hour

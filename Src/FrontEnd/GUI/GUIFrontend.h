@@ -78,6 +78,11 @@ class GUIFrontend : public QObject
     void onStrategyOrderConfirmationResolved(QString confirmationID);
 
   signals:
+    /**
+     * @brief The main window has completed its first paint.
+     * Thread context: Emitted from the Main/GUI thread.
+     */
+    void platformWindowPainted();
     void tradeStationAuthStateChanged(bool isAuthenticated, TSClient::AuthStateReason reason, QString message);
     void tradeStationAccountsReceived(QVector<Account> results);
     void tradeStationDataUsageUpdated(qsizetype newDataUsage);
@@ -119,9 +124,8 @@ class GUIFrontend : public QObject
     void updateTimeDisplay();
     void onDisplayRefreshTick();
     void onManagedBracketOverlayEvent(const StrategyBracketOverlayEntry& p_entry);
-    void onManagedBracketProtectionDropped(const QString& p_accountID,
-                                           const QString& p_symbol,
-                                           const QString& p_reason);
+    void
+    onManagedBracketProtectionDropped(const QString& p_accountID, const QString& p_symbol, const QString& p_reason);
     void onManualArmedBracketAdjusted(const QString& p_symbol, double p_stopPrice, double p_takePrice);
     void onRiskStatusChanged(const QString& p_accountId);
     void onRiskTabConfigChanged(const QString& p_accountId);
@@ -166,8 +170,9 @@ class GUIFrontend : public QObject
 
     static QString bytesToString(qint64 bytes);
 
-    std::unique_ptr<Ui::GUIFrontend> ui;  // Pointer to the UI object
-    QMainWindow* m_mainWindow = nullptr;  // Main application window (owned by this)
+    std::unique_ptr<Ui::GUIFrontend> ui; // Pointer to the UI object
+    QMainWindow* m_mainWindow = nullptr; // Main application window (owned by this)
+    bool m_platformWindowPainted = false;
     QPushButton* tradeStationLoginButton; // TradeStation connection action button (top controls)
     QPushButton* m_databentoButton;       // Databento connection action button (top controls)
     QPushButton* m_stopLossTightenOnlyLockButton = nullptr;

@@ -39,8 +39,7 @@ namespace
         return storage.retrieveValuesSync(kService, {kKeyName}).value(kKeyName);
     }
 
-    [[nodiscard]] std::string resolveSymbol(const databento::PitSymbolMap& p_symbolMap,
-                                            std::uint32_t p_instrumentId)
+    [[nodiscard]] std::string resolveSymbol(const databento::PitSymbolMap& p_symbolMap, std::uint32_t p_instrumentId)
     {
         const auto it = p_symbolMap.Find(p_instrumentId);
         if (it != p_symbolMap.Map().end())
@@ -59,26 +58,19 @@ namespace
     void printTrade(const databento::PitSymbolMap& p_symbolMap, const databento::TradeMsg& p_trade)
     {
         std::cout << "trade symbol=" << resolveSymbol(p_symbolMap, p_trade.hd.instrument_id)
-                  << " instrument_id=" << p_trade.hd.instrument_id
-                  << " price=" << toPrice(p_trade.price)
-                  << " size=" << p_trade.size
-                  << " sequence=" << p_trade.sequence
-                  << '\n';
+                  << " instrument_id=" << p_trade.hd.instrument_id << " price=" << toPrice(p_trade.price)
+                  << " size=" << p_trade.size << " sequence=" << p_trade.sequence << '\n';
     }
 
     void printMbp1(const databento::PitSymbolMap& p_symbolMap, const databento::Mbp1Msg& p_mbp1)
     {
         const auto& level = p_mbp1.levels.front();
         std::cout << "mbp1 symbol=" << resolveSymbol(p_symbolMap, p_mbp1.hd.instrument_id)
-                  << " instrument_id=" << p_mbp1.hd.instrument_id
-                  << " bid=" << toPrice(level.bid_px)
-                  << " x " << level.bid_sz
-                  << " ask=" << toPrice(level.ask_px)
-                  << " x " << level.ask_sz
-                  << " sequence=" << p_mbp1.sequence
-                  << '\n';
+                  << " instrument_id=" << p_mbp1.hd.instrument_id << " bid=" << toPrice(level.bid_px) << " x "
+                  << level.bid_sz << " ask=" << toPrice(level.ask_px) << " x " << level.ask_sz
+                  << " sequence=" << p_mbp1.sequence << '\n';
     }
-}
+} // namespace
 
 int main(int argc, char* argv[])
 {
@@ -93,7 +85,10 @@ int main(int argc, char* argv[])
     const QCommandLineOption datasetOption("dataset", "Databento dataset to use.", "dataset", "EQUS.MINI");
     const QCommandLineOption apiKeyOption("api-key", "Databento API key override.", "api-key");
     const QCommandLineOption timeoutOption("timeout-seconds", "How long to wait for market data.", "seconds", "15");
-    const QCommandLineOption recordLimitOption("records", "How many market-data records to print before exiting.", "count", "10");
+    const QCommandLineOption recordLimitOption("records",
+                                               "How many market-data records to print before exiting.",
+                                               "count",
+                                               "10");
 
     parser.addOption(symbolOption);
     parser.addOption(datasetOption);
@@ -121,19 +116,16 @@ int main(int argc, char* argv[])
     const QString apiKey = loadApiKey(parser.value(apiKeyOption));
     if (apiKey.isEmpty())
     {
-        std::cerr << "No Databento API key found. Use --api-key, DATABENTO_API_KEY, or OpenTraderPlatform secure storage.\n";
+        std::cerr
+            << "No Databento API key found. Use --api-key, DATABENTO_API_KEY, or OpenTraderPlatform secure storage.\n";
         return 2;
     }
 
     const std::string symbol = parser.value(symbolOption).toStdString();
     const std::string dataset = parser.value(datasetOption).toStdString();
 
-    std::cout << "Starting Databento probe"
-              << " dataset=" << dataset
-              << " symbol=" << symbol
-              << " timeout_seconds=" << timeoutSeconds
-              << " records=" << recordLimit
-              << '\n';
+    std::cout << "Starting Databento probe" << " dataset=" << dataset << " symbol=" << symbol
+              << " timeout_seconds=" << timeoutSeconds << " records=" << recordLimit << '\n';
 
     auto logReceiver = std::make_unique<databento::ConsoleLogReceiver>(databento::LogLevel::Info);
     databento::PitSymbolMap symbolMap;
@@ -166,8 +158,7 @@ int main(int argc, char* argv[])
                 break;
             }
 
-            const auto remaining =
-                std::chrono::duration_cast<std::chrono::milliseconds>(deadline - now);
+            const auto remaining = std::chrono::duration_cast<std::chrono::milliseconds>(deadline - now);
             const databento::Record* record = client.NextRecord(remaining);
             if (record == nullptr)
             {
@@ -201,10 +192,8 @@ int main(int argc, char* argv[])
 
             if (const auto* mapping = record->GetIf<databento::SymbolMappingMsg>())
             {
-                std::cout << "mapping instrument_id=" << mapping->hd.instrument_id
-                          << ' ' << mapping->STypeInSymbol()
-                          << " -> " << mapping->STypeOutSymbol()
-                          << '\n';
+                std::cout << "mapping instrument_id=" << mapping->hd.instrument_id << ' ' << mapping->STypeInSymbol()
+                          << " -> " << mapping->STypeOutSymbol() << '\n';
                 continue;
             }
 
@@ -223,22 +212,21 @@ int main(int argc, char* argv[])
             }
 
             std::cout << "record rtype=" << databento::ToString(record->RType())
-                      << " instrument_id=" << record->Header().instrument_id
-                      << '\n';
+                      << " instrument_id=" << record->Header().instrument_id << '\n';
         }
 
         client.Stop();
 
         if (marketDataCount > 0)
         {
-            std::cout << "Probe succeeded after receiving " << marketDataCount
-                      << " market-data records.\n";
+            std::cout << "Probe succeeded after receiving " << marketDataCount << " market-data records.\n";
             return 0;
         }
 
         if (sawAcceptedSubscription || sawAnyRecord)
         {
-            std::cout << "Probe connected and subscriptions were accepted, but no MBP-1 or trade records arrived before timeout.\n";
+            std::cout
+                << "Probe connected and subscriptions were accepted, but no MBP-1 or trade records arrived before timeout.\n";
             return 0;
         }
 

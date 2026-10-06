@@ -24,8 +24,7 @@ Q_LOGGING_CATEGORY(StrategyManagerLog, "StrategyManager")
 
 namespace
 {
-    template<typename T>
-    [[nodiscard]] auto makeReadyValueFutureCompat(T&& p_value)
+    template<typename T> [[nodiscard]] auto makeReadyValueFutureCompat(T&& p_value)
     {
 #if QT_VERSION >= QT_VERSION_CHECK(6, 6, 0)
         return QtFuture::makeReadyValueFuture(std::forward<T>(p_value));

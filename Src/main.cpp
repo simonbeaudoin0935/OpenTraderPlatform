@@ -6,6 +6,7 @@
 #include "Settings.h"
 #include "Core/MainApp.h"
 #include "Misc/ThreadNames.h"
+#include "Misc/SecureStorage.h"
 
 #include <QtGlobal>
 #include <QDateTime>
@@ -59,7 +60,10 @@ int main(int argc, char* argv[])
 
     MainApp* mainApp = MainApp::getInstance();
 
-    mainApp->start();
+    if (SecureStorage::activeBackend() == SecureStorage::Backend::OSKeyring)
+    {
+        mainApp->start();
+    }
 
     int exitCode = QCoreApplication::exec();
 

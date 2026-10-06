@@ -97,16 +97,7 @@ void OrderWidget::setupUI()
 
     // Setup model columns
     QStringList headers;
-    headers << "Status"
-            << "Symbol"
-            << "Action"
-            << "Qty"
-            << "Type"
-            << "Limit"
-            << "Stop"
-            << "Date"
-            << "Time"
-            << "Latency"
+    headers << "Status" << "Symbol" << "Action" << "Qty" << "Type" << "Limit" << "Stop" << "Date" << "Time" << "Latency"
             << "Order ID";
     m_model->setHorizontalHeaderLabels(headers);
 
