@@ -189,6 +189,11 @@ namespace
         }
 
         const std::uint32_t payloadSize = OpenTraderPlatform::StrategySDK::decodeFrameSize(prefix);
+        if (payloadSize > OpenTraderPlatform::StrategySDK::kMaxFramePayloadSize)
+        {
+            qWarning("Strategy handshake frame exceeds the 16 MiB payload limit");
+            return false;
+        }
         p_payload->assign(payloadSize, std::uint8_t{0});
         if (payloadSize == 0)
         {
@@ -1235,6 +1240,11 @@ void ProcessStrategyRuntimeBackend::drainInboundSocket()
         std::copy_n(rawData, prefix.size(), prefix.begin());
 
         const std::uint32_t payloadSize = OpenTraderPlatform::StrategySDK::decodeFrameSize(prefix);
+        if (payloadSize > OpenTraderPlatform::StrategySDK::kMaxFramePayloadSize)
+        {
+            readError = "Strategy frame exceeds the 16 MiB payload limit";
+            break;
+        }
         const qsizetype totalFrameSize =
             static_cast<qsizetype>(OpenTraderPlatform::StrategySDK::kFramePrefixSize + payloadSize);
         if (m_receiveBuffer.size() < totalFrameSize)

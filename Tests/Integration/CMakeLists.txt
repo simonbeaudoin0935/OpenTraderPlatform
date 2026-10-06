@@ -24,6 +24,11 @@ set_tests_properties(StrategySubscriptionErrorTests PROPERTIES
     LABELS "local-integration"
 )
 
+add_executable(StrategyTransportTests Strategy/StrategyTransportTests.cpp)
+target_link_libraries(StrategyTransportTests PRIVATE OpenTraderPlatformStrategySDK Qt6::Test Qt6::Network)
+add_test(NAME StrategyTransportTests COMMAND StrategyTransportTests)
+set_tests_properties(StrategyTransportTests PROPERTIES TIMEOUT 30 LABELS "local-integration")
+
 add_test(NAME OAuthKeyringRoundTripTests COMMAND OAuthSecurityTests keyringRoundTrip)
 set_tests_properties(OAuthKeyringRoundTripTests PROPERTIES
     ENVIRONMENT "OTP_TEST_KEYRING_ROUNDTRIP=1"

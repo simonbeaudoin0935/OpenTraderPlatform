@@ -65,6 +65,11 @@ ExternalStrategyRuntime + ExternalStrategyHandler
 ### Protocol and Process I/O
 
 - **Machine protocol**: framed Protobuf envelopes over a per-strategy Unix domain socket.
+- **Frame limit**: each payload is limited to 16 MiB (excluding the four-byte
+  length prefix). Host handshake/runtime readers and SDK readers reject larger
+  advertised lengths before allocating the payload; serialization enforces the
+  same limit. An oversized inbound frame is a fatal protocol error, not a frame
+  to skip and resume after.
 - **Human-readable output**: child `stdout` and `stderr` are captured by the host and appended to the per-strategy log with `[stdout]` / `[stderr]` prefixes.
 - **Isolation boundary**: one child process per loaded strategy. If a strategy crashes, only that strategy instance transitions to `ERROR`.
 - **Process supervision**: the host is responsible for launching, stopping, and force-cleaning the child when needed.
