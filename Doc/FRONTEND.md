@@ -14,6 +14,14 @@ OpenTraderPlatform now uses a single frontend implementation:
 
 `GUIFrontend` runs on the main thread.
 
+Startup session restoration is enabled by `MainApp::start()` only after credential
+unlocking completes (including cancellation or failure) and all worker threads
+have been started. Authentication then triggers a one-time restoration, with a
+500 ms fallback for sessions without authentication. Secondary chart windows are
+restored after 600 ms. These timers are not armed during frontend construction:
+the YubiKey prompt runs a nested event loop, where restoring replay prematurely
+would block the GUI waiting for a worker thread that has not started.
+
 ---
 
 ## GUI Implementation

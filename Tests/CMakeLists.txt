@@ -47,6 +47,15 @@ set_tests_properties(OAuthKeyringRoundTripTests PROPERTIES
 )
 
 if(UNIX AND NOT APPLE)
+    add_executable(StartupRestoreTests StartupRestoreTests.cpp)
+    target_include_directories(StartupRestoreTests PRIVATE ../Src/Misc)
+    target_link_libraries(StartupRestoreTests PRIVATE Qt6::Test)
+    target_compile_definitions(StartupRestoreTests PRIVATE
+        OTP_PLATFORM_EXECUTABLE="$<TARGET_FILE:OpenTraderPlatform>"
+    )
+    add_dependencies(StartupRestoreTests OpenTraderPlatform)
+    add_test(NAME StartupRestoreTests COMMAND StartupRestoreTests)
+
     add_test(NAME YubiKeyStorageSessionTests COMMAND OAuthSecurityTests yubiKeySession)
     set_tests_properties(YubiKeyStorageSessionTests PROPERTIES
         ENVIRONMENT "OTP_TEST_YUBIKEY=1"

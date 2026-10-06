@@ -1503,6 +1503,7 @@ void MainApp::start()
     }
 
     memoryMonitor.startMonitoring(500);
+    appFrontend->onPlatformStarted();
 }
 
 void MainApp::shutdown()
