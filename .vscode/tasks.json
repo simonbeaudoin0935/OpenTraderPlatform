@@ -190,6 +190,86 @@
             ]
         },
         {
+            "label": "run-unit-tests",
+            "type": "shell",
+            "command": "ctest",
+            "args": [
+                "--test-dir",
+                "${workspaceFolder}/build/test",
+                "--output-on-failure",
+                "--parallel",
+                "-L",
+                "unit"
+            ],
+            "group": "test",
+            "presentation": {
+                "echo": true,
+                "reveal": "always",
+                "focus": false,
+                "panel": "shared"
+            },
+            "problemMatcher": [],
+            "dependsOn": [
+                "build-test"
+            ]
+        },
+        {
+            "label": "run-local-integration-tests",
+            "type": "shell",
+            "command": "ctest",
+            "args": [
+                "--test-dir",
+                "${workspaceFolder}/build/test",
+                "--output-on-failure",
+                "--parallel",
+                "-L",
+                "local-integration"
+            ],
+            "group": "test",
+            "presentation": {
+                "echo": true,
+                "reveal": "always",
+                "focus": false,
+                "panel": "shared"
+            },
+            "problemMatcher": [],
+            "dependsOn": [
+                "build-test"
+            ]
+        },
+        {
+            "label": "run-all-tests",
+            "type": "shell",
+            "command": "ctest",
+            "args": [
+                "--test-dir",
+                "${workspaceFolder}/build/test",
+                "--output-on-failure",
+                "--parallel"
+            ],
+            "group": "test",
+            "presentation": {
+                "echo": true,
+                "reveal": "always",
+                "focus": false,
+                "panel": "shared"
+            },
+            "problemMatcher": []
+        },
+        {
+            "label": "build-then-run-tests",
+            "dependsOrder": "sequence",
+            "dependsOn": [
+                "build-test",
+                "run-all-tests"
+            ],
+            "group": {
+                "kind": "test",
+                "isDefault": false
+            },
+            "problemMatcher": []
+        },
+        {
             "label": "stage-strategy-sdk-test",
             "type": "shell",
             "command": "cmake",

@@ -77,6 +77,8 @@ class StreamRecoveryTests : public QObject
     void initTestCase()
     {
         QVERIFY(m_directory.isValid());
+        QCoreApplication::setOrganizationName("OpenTraderPlatform");
+        QCoreApplication::setApplicationName("StreamRecoveryTests");
         qputenv("XDG_CONFIG_HOME", m_directory.path().toUtf8());
         QSettings::setPath(QSettings::NativeFormat, QSettings::UserScope, m_directory.path());
         QVERIFY(SecureStorage::configureBackend(SecureStorage::Backend::YubiKey));
@@ -85,12 +87,14 @@ class StreamRecoveryTests : public QObject
         QVERIFY2(YubiKeyStorage::reset(error), qPrintable(error));
         m_settings = std::make_unique<QSettings>(m_directory.path() + "/state.ini", QSettings::IniFormat);
         appStateSettings = m_settings.get();
-        TSClient::getInstance()->start();
+        TSClient* client = TSClient::getInstance();
+        m_clientInitialized = true;
+        client->start();
         auto startup = std::make_shared<QPromise<void>>();
         startup->start();
         const auto ready = startup->future();
         QVERIFY(QMetaObject::invokeMethod(
-            TSClient::getInstance(),
+            client,
             [startup]()
             {
                 TSClient::getInstance()->setMode(TSClient::Mode::Replay);
@@ -209,6 +213,10 @@ class StreamRecoveryTests : public QObject
 
     void cleanupTestCase()
     {
+        if (!m_clientInitialized)
+        {
+            return;
+        }
         Stream::setShuttingDown(true);
         TSClient::destroyInstance();
         appStateSettings = nullptr;
@@ -217,6 +225,7 @@ class StreamRecoveryTests : public QObject
   private:
     QTemporaryDir m_directory;
     std::unique_ptr<QSettings> m_settings;
+    bool m_clientInitialized = false;
 };
 
 QTEST_GUILESS_MAIN(StreamRecoveryTests)
