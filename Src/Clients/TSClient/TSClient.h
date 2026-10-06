@@ -286,6 +286,11 @@ class TSClient final : public QObject
         return m_mode;
     }
 
+    [[nodiscard]] QUrl getApiBaseUrl() const
+    {
+        return m_baseUrl;
+    }
+
     /**
      * @brief Get the OrderEmulator (replay mode only)
      * @return Pointer to OrderEmulator, or nullptr if not in replay mode

@@ -12,7 +12,10 @@ suites. External TradeStation API tests are excluded from this task.
 The `build-then-run-tradestation-api-tests` task explicitly opts into
 `TradeStationApiSmokeTests`. It reads the existing OS-keyring TradeStation client
 credentials and tokens, uses the platform's startup/refresh flow, and verifies
-that the dedicated Simulation account is returned. It does not place orders.
+that the dedicated Simulation account is returned. It also checks balances,
+quotes, historical bar contracts and ranges, invalid-symbol errors, positions
+snapshot completion, and quote stream delivery/cleanup. It does not place orders.
+The process timeout is 240 seconds; each authentication/request wait is bounded.
 
 Prerequisites:
 - A working, unlocked native keyring and a previous platform login using OS keyring.

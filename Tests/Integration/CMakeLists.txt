@@ -3,7 +3,7 @@ target_link_libraries(TradeStationApiSmokeTests PRIVATE OpenTraderPlatformCommon
 add_test(NAME TradeStationApiSmokeTests COMMAND TradeStationApiSmokeTests)
 set_tests_properties(TradeStationApiSmokeTests PROPERTIES
     LABELS "tradestation-api"
-    TIMEOUT 90
+    TIMEOUT 240
     RUN_SERIAL TRUE
     SKIP_RETURN_CODE 77
 )

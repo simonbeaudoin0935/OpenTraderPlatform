@@ -7,7 +7,7 @@ account. It never places orders or unlocks the YubiKey vault.
 
 ## Execution boundary
 
-CTest label: `tradestation-api`; serial execution; 90-second process timeout.
+CTest label: `tradestation-api`; serial execution; 240-second process timeout.
 Without `OTP_TEST_TRADESTATION_API=1`, main returns skip code 77 BEFORE fixture
 construction or credential access. Account input is
 `OTP_TEST_TRADESTATION_ACCOUNT`; the VS Code explicit task supplies SIM2956555M.
@@ -30,10 +30,19 @@ network operation, not real-money trading; Live trading mode is forbidden here.
 Account discovery requires valid client/token prerequisites, bounded auth wait,
 successful account result, and exact configured-account membership.
 
+## Read-only scenarios
+
+Account discovery, account-scoped finite balance values, SPY quote contracts,
+historical minute ordering/OHLC/range on a completed trading date selected from
+daily bars, explicit invalid-symbol errors, complete positions snapshots
+(including empty accounts), and initial quote stream delivery/cleanup.
+Stream connections are installed on the worker before it can deliver data.
+These external paths are compiled but must be reported as unverified until
+actually executed against TradeStation.
+
 ## Planned extensions, not current coverage
 
-Balances/positions, quotes, historical bars, invalid-symbol errors, bounded
-stream lifecycle, and paper-order lifecycle are not implemented yet.
+Paper-order lifecycle is not implemented yet.
 Order tests MUST have a separate opt-in, exact dedicated-account and Simulation
 endpoint guards, bounded cancellation/terminal-state cleanup, and tracking only
 test-created orders. Never cancel all account orders or close existing positions.
