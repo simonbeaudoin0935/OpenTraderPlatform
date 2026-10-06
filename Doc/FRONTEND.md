@@ -110,6 +110,12 @@ Benefits: O(m) historical insertion, no full rebuild, stable existing indices.
 - `Scroll` — Both axes zoom
 - `Right Click` — Reset to last 30 bars
 
+MACD and RSI subpanes retain their manually adjusted vertical range when new
+bars arrive or the forming bar changes. MACD continues automatic scaling until
+its range is adjusted; RSI initially uses 0–100. Hiding and showing an indicator
+preserves the adjustment. Clearing the chart for a new symbol or replay session
+restores automatic range initialization.
+
 **ChartToolbar**: Contains symbol display, timeframe selector, auto-TF checkbox, replay play/pause button, speed selector, and order-visualization toggle.
 
 #### Dynamic Timescale

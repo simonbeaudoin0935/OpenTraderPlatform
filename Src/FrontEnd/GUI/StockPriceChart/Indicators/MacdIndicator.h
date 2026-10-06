@@ -3,6 +3,7 @@
 #include <QVector>
 
 #include "Indicators/ChartIndicator.h"
+#include "Indicators/IndicatorAxisRange.h"
 #include "qcustomplot.h"
 
 /**
@@ -67,13 +68,14 @@ class MacdIndicator final : public ChartIndicator
     void applyVisibility() const;
     void updateAxisRange(const QVector<double>& macdValues,
                          const QVector<double>& signalValues,
-                         const QVector<double>& histogramValues) const;
+                         const QVector<double>& histogramValues);
 
     QCustomPlot* m_plot = nullptr;
     QCPAxis* m_xAxis = nullptr;
     QCPAxis* m_yAxis = nullptr;
     bool m_visible = false;
     Settings m_settings;
+    IndicatorAxisRange m_axisRange;
     QCPGraph* m_macdGraph = nullptr;
     QCPGraph* m_signalGraph = nullptr;
     QCPBars* m_histogramPositive = nullptr;

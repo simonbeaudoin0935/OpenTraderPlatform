@@ -204,6 +204,7 @@ void MacdIndicator::rebuild(const UpdateContext& context)
 
 void MacdIndicator::clear()
 {
+    m_axisRange.reset();
     if (m_macdGraph != nullptr)
     {
         m_macdGraph->data()->clear();
@@ -309,7 +310,7 @@ void MacdIndicator::applyVisibility() const
 
 void MacdIndicator::updateAxisRange(const QVector<double>& macdValues,
                                     const QVector<double>& signalValues,
-                                    const QVector<double>& histogramValues) const
+                                    const QVector<double>& histogramValues)
 {
     double minValue = std::numeric_limits<double>::max();
     double maxValue = std::numeric_limits<double>::lowest();
@@ -332,17 +333,17 @@ void MacdIndicator::updateAxisRange(const QVector<double>& macdValues,
 
     if (minValue > maxValue)
     {
-        m_yAxis->setRange(-1.0, 1.0);
+        m_axisRange.setAutomaticRange(m_yAxis, QCPRange(-1.0, 1.0));
         return;
     }
 
     if (qFuzzyCompare(minValue + 1.0, maxValue + 1.0))
     {
         const double delta = qMax(0.1, qAbs(minValue) * 0.1);
-        m_yAxis->setRange(minValue - delta, maxValue + delta);
+        m_axisRange.setAutomaticRange(m_yAxis, QCPRange(minValue - delta, maxValue + delta));
         return;
     }
 
     const double padding = qMax(0.02, (maxValue - minValue) * 0.15);
-    m_yAxis->setRange(minValue - padding, maxValue + padding);
+    m_axisRange.setAutomaticRange(m_yAxis, QCPRange(minValue - padding, maxValue + padding));
 }

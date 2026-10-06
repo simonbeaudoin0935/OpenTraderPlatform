@@ -4,6 +4,7 @@
 #include <QVector>
 
 #include "Indicators/ChartIndicator.h"
+#include "Indicators/IndicatorAxisRange.h"
 #include "qcustomplot.h"
 
 /**
@@ -60,6 +61,7 @@ class RsiIndicator final : public ChartIndicator
     QCPAxis* m_yAxis = nullptr;
     bool m_visible = false;
     Settings m_settings;
+    IndicatorAxisRange m_axisRange;
 
     QCPGraph* m_rsiGraph = nullptr;
     QCPGraph* m_overboughtGraph = nullptr;

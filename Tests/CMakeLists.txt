@@ -24,6 +24,11 @@ target_include_directories(BarHistoryBackfillTests PRIVATE
 target_link_libraries(BarHistoryBackfillTests PRIVATE Qt6::Test Qt6::Core)
 add_test(NAME BarHistoryBackfillTests COMMAND BarHistoryBackfillTests)
 
+add_executable(IndicatorZoomTests IndicatorZoomTests.cpp)
+target_link_libraries(IndicatorZoomTests PRIVATE OpenTraderPlatformCommon Qt6::Test)
+add_test(NAME IndicatorZoomTests COMMAND IndicatorZoomTests)
+set_tests_properties(IndicatorZoomTests PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
+
 add_executable(TradeStationAuthenticationGateTests
     TradeStationAuthenticationGateTests.cpp
     ../Src/Clients/TSClient/AuthenticatedNetworkAccessManager.cpp
