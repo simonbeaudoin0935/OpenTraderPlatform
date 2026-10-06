@@ -1,4 +1,6 @@
 #include <QSettings>
+#include <QJsonDocument>
+#include <QJsonObject>
 #include <QSignalSpy>
 #include <QTemporaryDir>
 #include <QtTest>
@@ -16,11 +18,14 @@
 class ErrorReply : public QNetworkReply
 {
   public:
-    explicit ErrorReply(const QByteArray& p_body) : m_body(p_body)
+    explicit ErrorReply(const QByteArray& p_body, int p_status) : m_body(p_body)
     {
         open(QIODevice::ReadOnly);
-        setAttribute(QNetworkRequest::HttpStatusCodeAttribute, 400);
-        setError(QNetworkReply::UnknownContentError, "Invalid symbol");
+        setAttribute(QNetworkRequest::HttpStatusCodeAttribute, p_status);
+        if (p_status != 200)
+        {
+            setError(QNetworkReply::UnknownContentError, "Invalid symbol");
+        }
     }
 
     void abort() override {}
@@ -98,9 +103,13 @@ class StreamRecoveryTests : public QObject
     void finalErrorBodyIsParsedOnce_data()
     {
         QTest::addColumn<QByteArray>("body");
-        QTest::newRow("no-newline") << QByteArray("{\"Error\":\"BadRequest\",\"Message\":\"invalid symbol\"}");
-        QTest::newRow("newline") << QByteArray("{\"Error\":\"BadRequest\",\"Message\":\"invalid symbol\"}\n");
-        QTest::newRow("http-only") << QByteArray();
+        QTest::addColumn<int>("status");
+        QTest::newRow("no-newline") << QByteArray("{\"Error\":\"BadRequest\",\"Message\":\"invalid symbol\"}") << 400;
+        QTest::newRow("newline") << QByteArray("{\"Error\":\"BadRequest\",\"Message\":\"invalid symbol\"}\n") << 400;
+        QTest::newRow("bars-invalid-symbol")
+            << QByteArray("{\"Error\":\"InvalidSymbol\",\"Message\":\"Symbol cannot be found\"}") << 200;
+        QTest::newRow("quotes-invalid-symbol") << QByteArray("{\"Error\":\"FAILED, INVALID SYMBOL\"}") << 200;
+        QTest::newRow("http-only") << QByteArray() << 400;
     }
 
     void retriesAreTerminalOrBackedOff()
@@ -129,7 +138,8 @@ class StreamRecoveryTests : public QObject
     void finalErrorBodyIsParsedOnce()
     {
         QFETCH(QByteArray, body);
-        auto* reply = new ErrorReply(body);
+        QFETCH(int, status);
+        auto* reply = new ErrorReply(body, status);
         auto* stream = new TestMarketStream(reply, this);
         QSignalSpy closed(stream, &Stream::streamClosed);
         reply->complete();
@@ -138,7 +148,8 @@ class StreamRecoveryTests : public QObject
         QCOMPARE(qvariant_cast<Stream::StreamError>(closed.first().first()), Stream::StreamError::BadRequest);
         if (!body.isEmpty())
         {
-            QVERIFY(closed.first().at(1).toString().contains("invalid symbol"));
+            QVERIFY(closed.first().at(1).toString().contains(
+                QJsonDocument::fromJson(body).object().value("Error").toString()));
         }
         QCoreApplication::sendPostedEvents(nullptr, QEvent::DeferredDelete);
     }

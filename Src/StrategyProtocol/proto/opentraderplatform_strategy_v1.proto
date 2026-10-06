@@ -103,6 +103,7 @@ message ErrorMessage
     string code = 1;
     string message = 2;
     MarketDataSubscriptionError subscription_error = 3;
+    bool strategy_failure = 4;
 }
 
 message Bar

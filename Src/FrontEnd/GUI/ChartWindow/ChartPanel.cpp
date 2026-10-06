@@ -461,6 +461,16 @@ void ChartPanel::requestMissingBarsFromCache(const QString& p_symbol,
                         {
                             panel->m_chart->onRequestedMissingBarsReceived(p_symbol, p_requestToken, bars.value());
                         }
+                        else if (!bars.has_value())
+                        {
+                            const bool terminal = bars.error() == TSClient::Error::RejectedByValidator;
+                            panel->m_chart->onRequestedMissingBarsError(
+                                p_symbol,
+                                p_requestToken,
+                                terminal,
+                                terminal ? QString("Invalid symbol: %1 - historical requests stopped").arg(p_symbol)
+                                         : QString("Historical data unavailable for %1 - retrying").arg(p_symbol));
+                        }
                         else
                         {
                             panel->m_chart->onRequestedMissingBarsFailed(p_symbol, p_requestToken);

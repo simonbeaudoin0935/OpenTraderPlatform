@@ -1144,6 +1144,8 @@ void ProcessStrategyRuntimeBackend::setupProcessObservers()
                      [this](const int p_exitCode, const QProcess::ExitStatus p_exitStatus)
                      {
                          captureProcessStream(QProcess::StandardError);
+                         // A child can report its failure immediately before exiting.
+                         drainInboundSocket();
                          cleanupSocketResources();
 
                          if (m_shutdownRequested || m_runtimeDestroyed)
@@ -1196,6 +1198,7 @@ void ProcessStrategyRuntimeBackend::drainInboundSocket()
     }
 
     std::array<char, kSocketReadChunkSize> buffer{};
+    QString readError;
     while (true)
     {
         const ssize_t result = ::read(m_clientFd, buffer.data(), buffer.size());
@@ -1207,8 +1210,8 @@ void ProcessStrategyRuntimeBackend::drainInboundSocket()
 
         if (result == 0)
         {
-            scheduleSocketCleanup("Strategy process socket disconnected unexpectedly");
-            return;
+            readError = "Strategy process socket disconnected unexpectedly";
+            break;
         }
 
         if (errno == EINTR)
@@ -1221,9 +1224,8 @@ void ProcessStrategyRuntimeBackend::drainInboundSocket()
             break;
         }
 
-        scheduleSocketCleanup(
-            QString("Failed to read strategy socket: %1").arg(QString::fromUtf8(std::strerror(errno))));
-        return;
+        readError = QString("Failed to read strategy socket: %1").arg(QString::fromUtf8(std::strerror(errno)));
+        break;
     }
 
     while (m_receiveBuffer.size() >= static_cast<qsizetype>(OpenTraderPlatform::StrategySDK::kFramePrefixSize))
@@ -1237,12 +1239,16 @@ void ProcessStrategyRuntimeBackend::drainInboundSocket()
             static_cast<qsizetype>(OpenTraderPlatform::StrategySDK::kFramePrefixSize + payloadSize);
         if (m_receiveBuffer.size() < totalFrameSize)
         {
-            return;
+            break;
         }
 
         handleInboundPayload(
             std::span<const std::uint8_t>(rawData + OpenTraderPlatform::StrategySDK::kFramePrefixSize, payloadSize));
         m_receiveBuffer.remove(0, totalFrameSize);
+    }
+    if (!readError.isEmpty())
+    {
+        scheduleSocketCleanup(readError);
     }
 }
 
@@ -1277,6 +1283,10 @@ void ProcessStrategyRuntimeBackend::handleInboundPayload(const std::span<const s
                           QString("[protocol-error] %1: %2")
                               .arg(QString::fromStdString(envelope.error().code()),
                                    QString::fromStdString(envelope.error().message())));
+        }
+        if (envelope.error().strategy_failure())
+        {
+            reportFailure(QString::fromStdString(envelope.error().message()));
         }
         break;
 

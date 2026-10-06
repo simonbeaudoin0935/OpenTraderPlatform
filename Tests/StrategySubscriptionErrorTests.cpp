@@ -4,6 +4,8 @@
 #include <QTemporaryDir>
 #include <QThread>
 #include <QtTest>
+#include <array>
+#include <cstring>
 #include <memory>
 #include <vector>
 
@@ -16,12 +18,38 @@ namespace Protocol = opentraderplatform::strategy::v1;
 class ErrorHandler : public SDK::ExternalStrategyHandler
 {
   public:
-    void onStart(const Protocol::StrategyConfiguration&) override {}
+    void onStart(const Protocol::StrategyConfiguration&) override
+    {
+        if (claimDuringStart)
+        {
+            const auto claim = runtime->claimSymbols({"AMDO"});
+            claimRejected = claim.grantedSymbols.empty();
+            readyAfterFailure = !runtime->hasFailed();
+        }
+    }
     void onHostError(const Protocol::ErrorMessage& p_error) override
     {
         errors.push_back(p_error);
+        if (failRequired && p_error.has_subscription_error() && p_error.subscription_error().terminal() &&
+            p_error.subscription_error().symbol() == "AMDO")
+        {
+            runtime->fail("Required symbol AMDO rejected by TradeStation: invalid symbol");
+            runtime->fail("This duplicate failure must not overwrite the original");
+            blockedLog = !runtime->log("Must not continue after failure");
+        }
+    }
+    void onStop(std::string_view p_reason) override
+    {
+        stopReason = p_reason;
     }
     std::vector<Protocol::ErrorMessage> errors;
+    std::string stopReason;
+    SDK::ExternalStrategyRuntime* runtime = nullptr;
+    bool failRequired = false;
+    bool claimDuringStart = false;
+    bool claimRejected = false;
+    bool readyAfterFailure = false;
+    bool blockedLog = false;
 };
 
 class StrategySubscriptionErrorTests : public QObject
@@ -29,8 +57,19 @@ class StrategySubscriptionErrorTests : public QObject
     Q_OBJECT
 
   private slots:
+    void deliversSubscriptionFailuresViaExistingCallback_data()
+    {
+        QTest::addColumn<bool>("failRequired");
+        QTest::addColumn<bool>("claimDuringStart");
+        QTest::newRow("continue-on-errors") << false << false;
+        QTest::newRow("required-symbol-fails") << true << false;
+        QTest::newRow("required-symbol-fails-during-startup-claim") << true << true;
+    }
+
     void deliversSubscriptionFailuresViaExistingCallback()
     {
+        QFETCH(bool, failRequired);
+        QFETCH(bool, claimDuringStart);
         QTemporaryDir directory;
         QVERIFY(directory.isValid());
         const QByteArray oldID = qgetenv("OPENTRADERPLATFORM_STRATEGY_ID");
@@ -49,6 +88,9 @@ class StrategySubscriptionErrorTests : public QObject
         ErrorHandler handler;
         SDK::StrategyDescription description{"SubscriptionErrorTest", "1.0.0", {}};
         SDK::ExternalStrategyRuntime runtime(description, handler);
+        handler.runtime = &runtime;
+        handler.failRequired = failRequired;
+        handler.claimDuringStart = claimDuringStart;
         int exitCode = -1;
         std::unique_ptr<QThread> thread(QThread::create([&]() { exitCode = runtime.run(); }));
         QLocalSocket* socket = nullptr;
@@ -69,6 +111,14 @@ class StrategySubscriptionErrorTests : public QObject
         socket = server.nextPendingConnection();
         QVERIFY(socket);
 
+        if (claimDuringStart)
+        {
+            Protocol::HostToStrategyEnvelope start;
+            start.mutable_start()->mutable_configuration()->set_name("SubscriptionErrorTest");
+            const auto frame = SDK::serializeFramedMessage(start);
+            QCOMPARE(socket->write(reinterpret_cast<const char*>(frame.data()), frame.size()),
+                     static_cast<qint64>(frame.size()));
+        }
         for (const bool terminal: {false, true})
         {
             Protocol::HostToStrategyEnvelope envelope;
@@ -93,7 +143,7 @@ class StrategySubscriptionErrorTests : public QObject
         socket->flush();
         QTRY_VERIFY_WITH_TIMEOUT(thread->isFinished(), 5000);
         QVERIFY(thread->wait(5000));
-        QCOMPARE(exitCode, 0);
+        QCOMPARE(exitCode, failRequired ? 1 : 0);
         QCOMPARE(handler.errors.size(), size_t(2));
         QVERIFY(handler.errors[0].has_subscription_error());
         const auto& transient = handler.errors[0].subscription_error();
@@ -105,6 +155,41 @@ class StrategySubscriptionErrorTests : public QObject
         QVERIFY(terminal.terminal());
         QCOMPARE(terminal.retry_delay_ms(), 0u);
         QCOMPARE(QString::fromStdString(terminal.reason()), QString("BadRequest"));
+        if (failRequired)
+        {
+            QVERIFY(handler.blockedLog);
+            QCOMPARE(QString::fromStdString(handler.stopReason),
+                     QString("Required symbol AMDO rejected by TradeStation: invalid symbol"));
+            if (claimDuringStart)
+            {
+                QVERIFY(handler.claimRejected);
+                QVERIFY(!handler.readyAfterFailure);
+            }
+            QTRY_VERIFY_WITH_TIMEOUT(socket->bytesAvailable() > 0, 5000);
+            QTest::qWait(50);
+            const QByteArray outbound = socket->readAll();
+            int offset = 0;
+            int failures = 0;
+            while (outbound.size() - offset >= static_cast<int>(SDK::kFramePrefixSize))
+            {
+                std::array<std::uint8_t, SDK::kFramePrefixSize> prefix;
+                std::memcpy(prefix.data(), outbound.constData() + offset, prefix.size());
+                offset += static_cast<int>(prefix.size());
+                const int length = static_cast<int>(SDK::decodeFrameSize(prefix));
+                QVERIFY(length <= outbound.size() - offset);
+                Protocol::StrategyToHostEnvelope envelope;
+                QVERIFY(envelope.ParseFromArray(outbound.constData() + offset, length));
+                offset += length;
+                QVERIFY(!envelope.has_strategy_ready());
+                if (envelope.has_error() && envelope.error().strategy_failure())
+                {
+                    ++failures;
+                    QCOMPARE(QString::fromStdString(envelope.error().message()),
+                             QString("Required symbol AMDO rejected by TradeStation: invalid symbol"));
+                }
+            }
+            QCOMPARE(failures, 1);
+        }
     }
 };
 

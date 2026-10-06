@@ -291,6 +291,7 @@ void StrategyQuickView::onStrategyStatusChanged(const QString& strategyID,
 
     QTreeWidgetItem* item = it.value();
     item->setForeground(COL_NAME, strategyStateColor(state));
+    item->setToolTip(COL_NAME, errorMessage);
     m_strategyStates.insert(strategyID, state);
 
     if (state == StrategyManager::StrategyExecutionState::Stopped && !errorMessage.isEmpty())
@@ -298,7 +299,7 @@ void StrategyQuickView::onStrategyStatusChanged(const QString& strategyID,
         const QString strategyName = m_strategyNames.value(strategyID, strategyID);
         QMessageBox::critical(this,
                               "Strategy Failed",
-                              QString("Strategy \"%1\" stopped unexpectedly.\n\nReason:\n%2\n\n"
+                              QString("Strategy \"%1\" failed.\n\nReason:\n%2\n\n"
                                       "Check the strategy log for more details.")
                                   .arg(strategyName, errorMessage));
     }

@@ -954,6 +954,9 @@ void StrategyManager::markStrategyFailed(const QString& p_strategyID, const QStr
 
     m_mainAlgo->cancelManualOrderConfirmationsForStrategy(p_strategyID, QStringLiteral("Strategy failed"), true);
 
+    disconnectStrategyFromDataSources(instance);
+    releaseSymbols(p_strategyID);
+    instance->blockedSymbols.clear();
     setStrategyState(instance, StrategyState::STOPPED, p_errorMessage);
 
     // Stop the process if it's still running (it may have already crashed)

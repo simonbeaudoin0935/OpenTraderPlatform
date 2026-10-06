@@ -61,6 +61,11 @@ namespace OpenTraderPlatform::StrategySDK
         while (true)
         {
             executeDueTimers();
+            if (hasFailed())
+            {
+                m_handler.onStop(*m_failureReason);
+                return 1;
+            }
 
             const UnixSocketConnection::WaitStatus waitStatus = m_connection.waitForReadable(nextTimerTimeoutMs());
             if (waitStatus == UnixSocketConnection::WaitStatus::Timeout)
@@ -91,8 +96,33 @@ namespace OpenTraderPlatform::StrategySDK
             case DispatchResult::ShutdownRequested:
                 return 0;
             case DispatchResult::Failure:
+                if (hasFailed())
+                {
+                    m_handler.onStop(*m_failureReason);
+                }
                 return 1;
             }
+        }
+    }
+
+    void ExternalStrategyRuntime::fail(const std::string& p_reason)
+    {
+        if (hasFailed())
+        {
+            return;
+        }
+        m_failureReason = p_reason.empty() ? "Strategy failed without a reason" : p_reason;
+        m_timers.clear();
+        std::cerr << "[ExternalStrategyRuntime] Strategy failed: " << *m_failureReason << std::endl;
+        Protocol::StrategyToHostEnvelope envelope;
+        envelope.set_sequence(m_outboundSequence++);
+        auto* error = envelope.mutable_error();
+        error->set_code("strategy_failed");
+        error->set_message(*m_failureReason);
+        error->set_strategy_failure(true);
+        if (!sendEnvelope(std::move(envelope)))
+        {
+            std::cerr << "[ExternalStrategyRuntime] Failed to report strategy failure to host." << std::endl;
         }
     }
 
@@ -661,7 +691,7 @@ namespace OpenTraderPlatform::StrategySDK
                                                                          std::function<void()> p_callback,
                                                                          const bool p_repeat)
     {
-        if (!p_callback)
+        if (hasFailed() || !p_callback)
         {
             return 0;
         }
@@ -747,6 +777,10 @@ namespace OpenTraderPlatform::StrategySDK
 
     bool ExternalStrategyRuntime::sendEnvelope(Protocol::StrategyToHostEnvelope p_envelope)
     {
+        if (hasFailed() && !(p_envelope.has_error() && p_envelope.error().strategy_failure()))
+        {
+            return false;
+        }
         if (!m_connection.isOpen())
         {
             return false;
@@ -784,6 +818,10 @@ namespace OpenTraderPlatform::StrategySDK
         while (true)
         {
             executeDueTimers();
+            if (hasFailed())
+            {
+                return false;
+            }
 
             const UnixSocketConnection::WaitStatus waitStatus = m_connection.waitForReadable(nextTimerTimeoutMs());
             if (waitStatus == UnixSocketConnection::WaitStatus::Timeout)
@@ -818,6 +856,17 @@ namespace OpenTraderPlatform::StrategySDK
     ExternalStrategyRuntime::DispatchResult
     ExternalStrategyRuntime::dispatchEnvelope(const Protocol::HostToStrategyEnvelope& p_envelope)
     {
+        if (hasFailed())
+        {
+            return DispatchResult::Failure;
+        }
+        const DispatchResult result = dispatchEnvelopeImpl(p_envelope);
+        return hasFailed() ? DispatchResult::Failure : result;
+    }
+
+    ExternalStrategyRuntime::DispatchResult
+    ExternalStrategyRuntime::dispatchEnvelopeImpl(const Protocol::HostToStrategyEnvelope& p_envelope)
+    {
         switch (p_envelope.payload_case())
         {
         case Protocol::HostToStrategyEnvelope::kHandshakeAck:
@@ -836,6 +885,10 @@ namespace OpenTraderPlatform::StrategySDK
         case Protocol::HostToStrategyEnvelope::kStart:
             m_configuration = p_envelope.start().configuration();
             m_handler.onStart(*m_configuration);
+            if (hasFailed())
+            {
+                return DispatchResult::Failure;
+            }
             return sendStrategyReady() ? DispatchResult::Continue : DispatchResult::Failure;
 
         case Protocol::HostToStrategyEnvelope::kPause:
@@ -912,7 +965,7 @@ namespace OpenTraderPlatform::StrategySDK
 
     void ExternalStrategyRuntime::executeDueTimers()
     {
-        while (true)
+        while (!hasFailed())
         {
             const auto now = std::chrono::steady_clock::now();
             auto timerIt = std::find_if(m_timers.begin(),

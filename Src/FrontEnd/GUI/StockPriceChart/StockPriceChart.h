@@ -189,6 +189,10 @@ class StockPriceChart : public QWidget
                                         uint64_t p_requestToken,
                                         const std::shared_ptr<QVector<Bar>>& barsPtr);
     void onRequestedMissingBarsFailed(const QString& p_symbol, uint64_t p_requestToken);
+    void onRequestedMissingBarsError(const QString& p_symbol,
+                                     uint64_t p_requestToken,
+                                     bool p_terminal,
+                                     const QString& p_message);
     void setReplayModeActive(bool active);
     void showManualConfirmationCue(const QString& p_text, bool p_flashEnabled = true);
     void clearManualConfirmationCue();
@@ -533,6 +537,9 @@ class StockPriceChart : public QWidget
     /// This prevents stale responses (from cancelled requests due to rapid symbol/timescale switching) from
     /// being processed.
     std::atomic<uint64_t> m_currentMissingBarsRequestToken{0};
+    bool m_historyRequestRejected = false;
+    QDateTime m_nextHistoryRetryTime;
+    int m_historyRetryDelayMs = StreamConstants::LIVE_RETRY_INITIAL_DELAY_MS;
 
     /// Date of the most recently issued missing-bars request.
     /// Used in onRequestedMissingBarsFailed to record which date returned no data (holiday/non-trading day).

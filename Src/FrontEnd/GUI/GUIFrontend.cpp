@@ -4720,7 +4720,7 @@ void GUIFrontend::requestMissingBarsFromCache(const QString& p_symbol,
     else if (std::holds_alternative<QFuture<std::expected<std::shared_ptr<QVector<Bar>>, TSClient::Error>>>(result))
     {
         std::get<QFuture<std::expected<std::shared_ptr<QVector<Bar>>, TSClient::Error>>>(result).then(
-            [frontend = QPointer<GUIFrontend>(this), p_symbol, from, to, p_requestToken](
+            [frontend = QPointer<GUIFrontend>(this), p_symbol, p_requestToken](
                 std::expected<std::shared_ptr<QVector<Bar>>, TSClient::Error>&& bars) mutable
             {
                 if (frontend.isNull())
@@ -4730,7 +4730,7 @@ void GUIFrontend::requestMissingBarsFromCache(const QString& p_symbol,
 
                 QMetaObject::invokeMethod(
                     frontend,
-                    [frontend, p_symbol, from, to, p_requestToken, bars = std::move(bars)]() mutable
+                    [frontend, p_symbol, p_requestToken, bars = std::move(bars)]() mutable
                     {
                         if (frontend.isNull())
                         {
@@ -4763,31 +4763,13 @@ void GUIFrontend::requestMissingBarsFromCache(const QString& p_symbol,
                             qCritical() << "Failed to get missing bars from BarCache - Error:"
                                         << QtEnum::toString(bars.error());
 
-                            // Notify the chart that the request failed so it can release the semaphore
-                            frontend->ui->priceChart->onRequestedMissingBarsFailed(p_symbol, p_requestToken);
-
-                            // Retry after 1 second using the same pattern as TSClient error handling
-                            QTimer::singleShot(
-                                1000,
-                                frontend,
-                                [frontend, p_symbol, from, to, p_requestToken]()
-                                {
-                                    if (frontend.isNull())
-                                    {
-                                        return;
-                                    }
-
-                                    if (!frontend->ui->priceChart->isExpectedMissingBarsRequest(p_symbol,
-                                                                                                p_requestToken))
-                                    {
-                                        qCDebug(GUIFrontendLog) << "Skipping stale missing bars retry for" << p_symbol
-                                                                << "token" << p_requestToken;
-                                        return;
-                                    }
-
-                                    qInfo() << "Retrying missing bars request from" << from << "to" << to;
-                                    frontend->requestMissingBarsFromCache(p_symbol, from, to, p_requestToken);
-                                });
+                            const bool terminal = bars.error() == TSClient::Error::RejectedByValidator;
+                            frontend->ui->priceChart->onRequestedMissingBarsError(
+                                p_symbol,
+                                p_requestToken,
+                                terminal,
+                                terminal ? QString("Invalid symbol: %1 - historical requests stopped").arg(p_symbol)
+                                         : QString("Historical data unavailable for %1 - retrying").arg(p_symbol));
                         }
                     },
                     Qt::QueuedConnection);

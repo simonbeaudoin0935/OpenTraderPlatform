@@ -19,6 +19,7 @@ if(NOT Protobuf_FOUND)
 endif()
 
 set(OPENTRADERPLATFORM_STRATEGY_SDK_PUBLIC_INCLUDE_DIR "${CMAKE_CURRENT_SOURCE_DIR}/StrategySDK/Public")
+set(OPENTRADERPLATFORM_STRATEGY_SDK_VERSION "2.0.0")
 set(OPENTRADERPLATFORM_STRATEGY_SDK_CMAKE_DIR "${CMAKE_CURRENT_SOURCE_DIR}/StrategySDK/cmake")
 set(OPENTRADERPLATFORM_STRATEGY_PROTOCOL_PROTO_FILES
     "${CMAKE_CURRENT_SOURCE_DIR}/StrategyProtocol/proto/opentraderplatform_strategy_v1.proto"
@@ -65,7 +66,7 @@ configure_package_config_file(
 
 write_basic_package_version_file(
     "${CMAKE_CURRENT_BINARY_DIR}/OpenTraderPlatformStrategySDKConfigVersion.cmake"
-    VERSION ${PROJECT_VERSION}
+    VERSION ${OPENTRADERPLATFORM_STRATEGY_SDK_VERSION}
     COMPATIBILITY SameMinorVersion
 )
 
@@ -142,8 +143,8 @@ add_library(OpenTraderPlatformStrategySDK SHARED
 add_library(OpenTraderPlatform::StrategySDK ALIAS OpenTraderPlatformStrategySDK)
 
 set_target_properties(OpenTraderPlatformStrategySDK PROPERTIES
-    VERSION ${PROJECT_VERSION}
-    SOVERSION 1
+    VERSION ${OPENTRADERPLATFORM_STRATEGY_SDK_VERSION}
+    SOVERSION 2
     EXPORT_NAME StrategySDK
 )
 

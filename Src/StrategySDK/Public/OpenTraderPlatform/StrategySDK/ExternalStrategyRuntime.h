@@ -170,6 +170,12 @@ namespace OpenTraderPlatform::StrategySDK
         explicit ExternalStrategyRuntime(const StrategyDescription& p_description, ExternalStrategyHandler& p_handler);
 
         [[nodiscard]] int run();
+        /// Fail execution from a runtime callback; reports the reason and exits without a crash.
+        void fail(const std::string& p_reason);
+        [[nodiscard]] bool hasFailed() const
+        {
+            return m_failureReason.has_value();
+        }
         void close();
 
         [[nodiscard]] bool isConnected() const
@@ -315,6 +321,7 @@ namespace OpenTraderPlatform::StrategySDK
                                              Protocol::HostToStrategyEnvelope::PayloadCase p_payloadCase,
                                              Protocol::HostToStrategyEnvelope* p_responseEnvelope);
         [[nodiscard]] DispatchResult dispatchEnvelope(const Protocol::HostToStrategyEnvelope& p_envelope);
+        [[nodiscard]] DispatchResult dispatchEnvelopeImpl(const Protocol::HostToStrategyEnvelope& p_envelope);
         void executeDueTimers();
         [[nodiscard]] int nextTimerTimeoutMs() const;
         [[nodiscard]] std::string nextCorrelationId(std::string_view p_prefix);
@@ -326,6 +333,7 @@ namespace OpenTraderPlatform::StrategySDK
         std::uint64_t m_outboundSequence = 1;
         TimerId m_nextTimerId = 1;
         std::optional<Protocol::StrategyConfiguration> m_configuration;
+        std::optional<std::string> m_failureReason;
         std::unordered_map<std::string, Protocol::OrderUpdate> m_orders;
         std::unordered_map<std::string, Protocol::PositionUpdate> m_positions;
         std::vector<TimerEntry> m_timers;

@@ -239,6 +239,9 @@ void StockPriceChart::setReplayModeActive(bool active)
     }
 
     m_isReplayModeActive = active;
+    m_historyRequestRejected = false;
+    m_nextHistoryRetryTime = {};
+    m_historyRetryDelayMs = StreamConstants::LIVE_RETRY_INITIAL_DELAY_MS;
     if (chartToolbar != nullptr)
     {
         chartToolbar->setTenSecondTimeFrameEnabled(active);

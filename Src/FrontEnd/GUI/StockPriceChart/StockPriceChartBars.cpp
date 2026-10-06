@@ -504,6 +504,8 @@ void StockPriceChart::onRequestedMissingBarsReceived(const QString& p_symbol,
     m_currentMissingBarsRequestToken.store(0);
     stopLoadingSpinner();
     m_isReplayNoDataState = false;
+    m_nextHistoryRetryTime = {};
+    m_historyRetryDelayMs = StreamConstants::LIVE_RETRY_INITIAL_DELAY_MS;
 
     addHistoricalBarsToIndexMapping(barsPtr);
 
@@ -634,6 +636,39 @@ void StockPriceChart::onRequestedMissingBarsReceived(const QString& p_symbol,
 /**
  * @brief Handles the failure of a missing bars request.
  */
+void StockPriceChart::onRequestedMissingBarsError(const QString& p_symbol,
+                                                  uint64_t p_requestToken,
+                                                  bool p_terminal,
+                                                  const QString& p_message)
+{
+    if (!isExpectedMissingBarsRequest(p_symbol, p_requestToken))
+    {
+        DEBUG << "Ignoring stale historical error for" << p_symbol << "token" << p_requestToken;
+        return;
+    }
+    m_currentMissingBarsRequestToken.store(0);
+    stopLoadingSpinner();
+    WARNING << "Historical request failed for" << p_symbol << "terminal=" << p_terminal << p_message;
+    showChartStatusMessage(p_message);
+    if (p_terminal)
+    {
+        m_historyRequestRejected = true;
+        return;
+    }
+    const int delay = m_historyRetryDelayMs;
+    m_historyRetryDelayMs = qMin(delay * 2, StreamConstants::LIVE_RETRY_MAX_DELAY_MS);
+    m_nextHistoryRetryTime = QDateTime::currentDateTime().addMSecs(delay);
+    QTimer::singleShot(delay,
+                       this,
+                       [this, p_symbol]()
+                       {
+                           if (m_symbol == p_symbol && !m_historyRequestRejected)
+                           {
+                               onAxisRangeChanged();
+                           }
+                       });
+}
+
 void StockPriceChart::onRequestedMissingBarsFailed(const QString& p_symbol, uint64_t p_requestToken)
 {
     DEBUG << "Missing bars request failed";
@@ -648,6 +683,9 @@ void StockPriceChart::onRequestedMissingBarsFailed(const QString& p_symbol, uint
     // Mark request as completed
     m_currentMissingBarsRequestToken.store(0);
     stopLoadingSpinner();
+
+    m_nextHistoryRetryTime = {};
+    m_historyRetryDelayMs = StreamConstants::LIVE_RETRY_INITIAL_DELAY_MS;
 
     if (!MainApp::isInReplayMode() && !MainApp::isInReviewMode() && !TSClient::getInstance()->isAuthenticated())
     {
@@ -775,6 +813,10 @@ void StockPriceChart::checkForMissingBars(const QDateTime& viewStartTime, const 
 {
     Q_UNUSED(viewEndTime);
 
+    if (m_historyRequestRejected || QDateTime::currentDateTime() < m_nextHistoryRetryTime)
+    {
+        return;
+    }
     if (!MainApp::isInReplayMode() && !MainApp::isInReviewMode() && !TSClient::getInstance()->isAuthenticated())
     {
         return;
@@ -860,10 +902,12 @@ void StockPriceChart::checkForMissingBars(const QDateTime& viewStartTime, const 
     const QDateTime replayAnchorDayStart(firstBarTime.date(),
                                          TradingHours::TIME_FIRST_CANDLE_EARLY_PRE_MARKET_SESSION,
                                          TradingHours::MARKET_TIMEZONE);
-    const bool shouldLoadReplayAnchorDayFirst =
-        MainApp::isInReplayMode() && timestampToIndex.isEmpty() && replayAnchorDayStart < firstBarTime;
-    const bool shouldLoadLiveAnchorDayFirst =
-        !MainApp::isInReplayMode() && timestampToIndex.isEmpty() && replayAnchorDayStart < firstBarTime;
+    const bool shouldLoadReplayAnchorDayFirst = MainApp::isInReplayMode() && timestampToIndex.isEmpty() &&
+                                                replayAnchorDayStart < firstBarTime &&
+                                                !m_knownEmptyDates.contains(firstBarTime.date());
+    const bool shouldLoadLiveAnchorDayFirst = !MainApp::isInReplayMode() && timestampToIndex.isEmpty() &&
+                                              replayAnchorDayStart < firstBarTime &&
+                                              !m_knownEmptyDates.contains(firstBarTime.date());
 
     if (shouldLoadReplayAnchorDayFirst || shouldLoadLiveAnchorDayFirst)
     {
@@ -924,6 +968,10 @@ void StockPriceChart::checkForMissingBars(const QDateTime& viewStartTime, const 
     }
     else
     {
+        if (m_knownEmptyDates.contains(firstBarTime.date()))
+        {
+            return;
+        }
         requestStartTime = firstBarTime;
         requestStartTime.setTime(TradingHours::TIME_FIRST_CANDLE_EARLY_PRE_MARKET_SESSION);
 
@@ -991,6 +1039,9 @@ void StockPriceChart::clearSymbol()
     m_currentMissingBarsRequestToken.store(0);
     m_lastRequestedDate = QDate();
     m_knownEmptyDates.clear();
+    m_historyRequestRejected = false;
+    m_nextHistoryRetryTime = {};
+    m_historyRetryDelayMs = StreamConstants::LIVE_RETRY_INITIAL_DELAY_MS;
     m_isReplayNoDataState = false;
     m_pendingRecenterToPriceAction = false;
     stopLoadingSpinner();

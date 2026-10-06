@@ -355,13 +355,62 @@ updated protocol can additionally inspect `error.has_subscription_error()` and
 For example, an invalid symbol produces a terminal `BadRequest` error; the host
 stops retrying that feed. The strategy decides whether to stop, alert, or select
 another symbol. Other feeds or strategies are not automatically stopped.
+The broker's `InvalidSymbol` and `FAILED, INVALID SYMBOL` feed errors are also
+classified as terminal `BadRequest` errors.
 An already-failed subscription's last error is also sent when another strategy
 attaches to that symbol context; receiving valid data clears the cached error.
+
+Selecting a rejected symbol in a chart stops historical requests for that symbol
+and displays an invalid-symbol status on the chart. Main and detached charts use
+the same policy: terminal rejection is reset when selecting a symbol again or
+switching between live and replay;
+transient historical errors retry with 1-to-30-second exponential backoff. Errors
+are not treated as empty trading days; genuinely empty responses remain eligible
+for holiday/non-trading-day backfill without repeatedly fetching the empty day.
 
 This is an additive field on the existing error envelope, so older strategy
 binaries still receive the code and descriptive message through `onHostError`.
 No new handler virtual method or protocol-major change is required. Rebuild
 against the updated SDK to access structured subscription details.
+
+#### Failing a strategy intentionally
+
+Call `runtime.fail(reason)` from a runtime callback for an unrecoverable strategy
+condition. This sends a structured failure to the host, disables timers and
+further outgoing intents, and makes `run()` return nonzero without deliberately
+crashing. `runtime.hasFailed()` lets startup code stop after a nested helper such
+as `claimSymbols()` dispatches an error callback. The first failure reason wins;
+startup never sends a ready acknowledgement after failure. After callbacks unwind,
+the runtime calls `onStop(reason)` for local cleanup before returning.
+
+For a strategy that requires one configured symbol:
+
+```cpp
+void onHostError(const Protocol::ErrorMessage& error) override
+{
+    if (error.has_subscription_error() &&
+        error.subscription_error().terminal() &&
+        error.subscription_error().symbol() == m_symbol)
+    {
+        m_runtime->fail("Required symbol " + m_symbol + ": " + error.message());
+        return;
+    }
+    // Log transient or unrelated failures; the host handles transient retries.
+}
+```
+
+Return promptly after calling `fail`; it does not forcibly unwind strategy
+callback code. Use this policy only for feeds/symbols the strategy requires.
+A multi-symbol scanner may choose to discard a rejected symbol instead.
+The host preserves the reason in the Strategy Failed dialog and strategy log,
+disconnects data callbacks, releases claims/references and pending confirmations,
+and keeps the configuration loaded for correction and restart. Existing broker
+orders/positions are not automatically cancelled or flattened.
+Rebuild strategy executables against the updated SDK before using this API.
+The new runtime state and generated protobuf layout require SDK ABI version 2
+(`libOpenTraderPlatformStrategySDK.so.2`). The wire protocol remains compatible,
+but old binaries must not load the new library under the previous `.so.1` name.
+Existing SDK-1 binaries require their matching SDK-1 library until rebuilt.
 
 #### `ExternalStrategyRuntime` helpers
 
