@@ -1,4 +1,5 @@
 #include "RiskStatusWidget.h"
+#include "CONSTANTS.h"
 
 #include <QHBoxLayout>
 #include <QVBoxLayout>
@@ -49,38 +50,45 @@ RiskStatusWidget::RiskStatusWidget(QWidget* parent) : QWidget(parent)
     layout->setSpacing(4);
 
     m_primaryLabel = new QLabel(this);
-    m_primaryLabel->setStyleSheet("QLabel { color: #d7e6f5; font-weight: bold; font-size: 11px; }");
+    m_primaryLabel->setStyleSheet(QStringLiteral("QLabel { color: %1; font-weight: bold; font-size: 11px; }")
+                                      .arg(QString::fromLatin1(GUIThemeConstants::TEXT_PRIMARY)));
     layout->addWidget(m_primaryLabel);
 
     m_headroomBar = new QProgressBar(this);
     m_headroomBar->setRange(0, 1000);
     m_headroomBar->setTextVisible(true);
     m_headroomBar->setFormat("%p%");
-    m_headroomBar->setStyleSheet("QProgressBar {"
-                                 "    border: 1px solid #2d3f53;"
-                                 "    border-radius: 4px;"
-                                 "    background-color: #141b22;"
-                                 "    color: #eef4fb;"
-                                 "    text-align: center;"
-                                 "    height: 14px;"
-                                 "}"
-                                 "QProgressBar::chunk {"
-                                 "    background-color: #2ca65a;"
-                                 "    border-radius: 3px;"
-                                 "}");
+    m_headroomBar->setStyleSheet(QStringLiteral("QProgressBar {"
+                                                "    border: 1px solid %1;"
+                                                "    border-radius: 2px;"
+                                                "    background-color: %2;"
+                                                "    color: %3;"
+                                                "    text-align: center;"
+                                                "    height: 14px;"
+                                                "}"
+                                                "QProgressBar::chunk {"
+                                                "    background-color: #2ca65a;"
+                                                "    border-radius: 2px;"
+                                                "}")
+                                     .arg(QString::fromLatin1(GUIThemeConstants::BORDER))
+                                     .arg(QString::fromLatin1(GUIThemeConstants::INPUT_BACKGROUND))
+                                     .arg(QString::fromLatin1(GUIThemeConstants::TEXT_PRIMARY)));
     layout->addWidget(m_headroomBar);
 
     m_secondaryLabel = new QLabel(this);
-    m_secondaryLabel->setStyleSheet("QLabel { color: #b6c6d6; font-size: 10px; }");
+    m_secondaryLabel->setStyleSheet(QStringLiteral("QLabel { color: %1; font-size: 10px; }")
+                                        .arg(QString::fromLatin1(GUIThemeConstants::TEXT_MUTED)));
     m_secondaryLabel->setWordWrap(true);
     layout->addWidget(m_secondaryLabel);
 
     setObjectName("RiskStatusWidget");
-    setStyleSheet("QWidget#RiskStatusWidget {"
-                  "    background-color: #10202e;"
-                  "    border: 1px solid #30485e;"
-                  "    border-radius: 6px;"
-                  "}");
+    setStyleSheet(QStringLiteral("QWidget#RiskStatusWidget {"
+                                 "    background-color: %1;"
+                                 "    border: 1px solid %2;"
+                                 "    border-radius: 2px;"
+                                 "}")
+                      .arg(QString::fromLatin1(GUIThemeConstants::SIDEBAR_BACKGROUND))
+                      .arg(QString::fromLatin1(GUIThemeConstants::BORDER)));
 
     RiskStatusSnapshot emptySnapshot;
     setSnapshot(emptySnapshot);
@@ -88,18 +96,21 @@ RiskStatusWidget::RiskStatusWidget(QWidget* parent) : QWidget(parent)
 
 void RiskStatusWidget::applyStateColor(const QString& p_colorHex)
 {
-    m_headroomBar->setStyleSheet(QString("QProgressBar {"
-                                         "    border: 1px solid #2d3f53;"
-                                         "    border-radius: 4px;"
-                                         "    background-color: #141b22;"
-                                         "    color: #eef4fb;"
-                                         "    text-align: center;"
-                                         "    height: 14px;"
-                                         "}"
-                                         "QProgressBar::chunk {"
-                                         "    background-color: %1;"
-                                         "    border-radius: 3px;"
-                                         "}")
+    m_headroomBar->setStyleSheet(QStringLiteral("QProgressBar {"
+                                                "    border: 1px solid %1;"
+                                                "    border-radius: 2px;"
+                                                "    background-color: %2;"
+                                                "    color: %3;"
+                                                "    text-align: center;"
+                                                "    height: 14px;"
+                                                "}"
+                                                "QProgressBar::chunk {"
+                                                "    background-color: %4;"
+                                                "    border-radius: 2px;"
+                                                "}")
+                                     .arg(QString::fromLatin1(GUIThemeConstants::BORDER))
+                                     .arg(QString::fromLatin1(GUIThemeConstants::INPUT_BACKGROUND))
+                                     .arg(QString::fromLatin1(GUIThemeConstants::TEXT_PRIMARY))
                                      .arg(p_colorHex));
 }
 

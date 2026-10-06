@@ -147,10 +147,12 @@ void OrderWidget::setupUI()
 
 void OrderWidget::setupStyles()
 {
-    m_headerWidget->setStyleSheet("QWidget {"
-                                  "   background-color: #2D2D2D;"
-                                  "   border-bottom: 1px solid #3D3D3D;"
-                                  "}");
+    m_headerWidget->setStyleSheet(QStringLiteral("QWidget {"
+                                                 "   background-color: %1;"
+                                                 "   border-bottom: 1px solid %2;"
+                                                 "}")
+                                      .arg(QString::fromLatin1(GUIThemeConstants::SIDEBAR_BACKGROUND))
+                                      .arg(QString::fromLatin1(GUIThemeConstants::BORDER)));
     m_headerLabel->setStyleSheet("QLabel { color: #FFFFFF; background: transparent; }");
     m_cancelAllOrdersButton->setStyleSheet("QPushButton {"
                                            "   background-color: #7A1F1F;"
@@ -177,24 +179,6 @@ void OrderWidget::setupStyles()
                                     "QToolButton:pressed {"
                                     "   background-color: #2A2A2A;"
                                     "}");
-
-    // Style the table
-    m_tableView->setStyleSheet("QTableView {"
-                               "   alternate-background-color: #1C1C1C;"
-                               "   background-color: #242424;"
-                               "   color: white;"
-                               "   gridline-color: #3D3D3D;"
-                               "}"
-                               "QTableView::item:selected {"
-                               "   background-color: #2C539E;"
-                               "}"
-                               "QHeaderView::section {"
-                               "   background-color: #2D2D2D;"
-                               "   color: white;"
-                               "   border: none;"
-                               "   border-right: 1px solid #3D3D3D;"
-                               "   padding: 4px;"
-                               "}");
 }
 
 void OrderWidget::setReviewModeEnabled(const bool p_enabled)

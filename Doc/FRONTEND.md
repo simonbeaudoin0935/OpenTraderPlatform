@@ -52,6 +52,19 @@ OpenTraderPlatform now uses a single frontend implementation:
 └──────────────────────────────────────────────────────────────┘
 ```
 
+### Visual Theme
+
+The Qt Widgets interface uses a VS Code-inspired dark palette while retaining the
+existing trading workspace and panel arrangement. Shared surface, text, border,
+selection, and accent colors are defined in `GUIThemeConstants` in
+`Src/Misc/CONSTANTS.h` and applied by `GUIFrontend::setupDarkTheme`.
+The interface prefers Segoe UI with Lato/Noto Sans fallbacks; log panes prefer
+Cascadia Code and Consolas with a platform monospace fallback.
+
+Market and trading cues (such as bid/ask, buy/sell, risk state, and session
+backgrounds) remain semantically color-coded; the shared theme styles the
+surrounding workspace, controls, tables, and focus/selection states.
+
 ### MarketFlags Labels
 
 Three always-visible status indicators in the top controls area:

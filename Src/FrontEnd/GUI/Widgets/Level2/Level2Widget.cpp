@@ -10,6 +10,7 @@
 #include <QList>
 #include <QVector>
 #include <algorithm>
+#include "CONSTANTS.h"
 #include "LTTng/LTTngTracepoints.h"
 
 namespace
@@ -163,12 +164,13 @@ void Level2Widget::setupUI()
 
 void Level2Widget::setupStyles()
 {
-    // Style the header labels
-    QString commonStyle = "QLabel {"
-                          "   background-color: #2D2D2D;"
-                          "   padding: 4px;"
-                          "   border-bottom: 1px solid #3D3D3D;"
-                          "}";
+    const QString commonStyle = QStringLiteral("QLabel {"
+                                               "   background-color: %1;"
+                                               "   padding: 4px;"
+                                               "   border-bottom: 1px solid %2;"
+                                               "}")
+                                    .arg(QString::fromLatin1(GUIThemeConstants::SIDEBAR_BACKGROUND))
+                                    .arg(QString::fromLatin1(GUIThemeConstants::BORDER));
 
     bidLabel->setStyleSheet(commonStyle + "QLabel {"
                                           "   color: #00FF00;"
@@ -178,34 +180,21 @@ void Level2Widget::setupStyles()
                                           "   color: #FF0000;"
                                           "}");
 
-    spreadLabel->setStyleSheet(commonStyle + "QLabel {"
-                                             "   color: #FFFFFF;"
-                                             "   border-top: 1px solid #3D3D3D;" // Add top border
-                                             "}");
+    spreadLabel->setStyleSheet(commonStyle + QStringLiteral("QLabel {"
+                                                            "   color: %1;"
+                                                            "   border-top: 1px solid %2;"
+                                                            "}")
+                                                 .arg(QString::fromLatin1(GUIThemeConstants::TEXT_PRIMARY))
+                                                 .arg(QString::fromLatin1(GUIThemeConstants::BORDER)));
 
-
-    // Style the table
-    tableView->setStyleSheet("QTableView {"
-                             "   alternate-background-color: #1C1C1C;"
-                             "   background-color: #242424;"
-                             "   color: white;"
-                             "   gridline-color: #3D3D3D;"
-                             "}"
-                             "QTableView::item:selected {"
-                             "   background-color: #2C539E;"
-                             "}"
-                             "QHeaderView::section {"
-                             "   background-color: #2D2D2D;"
-                             "   color: white;"
-                             "   border: none;"
-                             "   border-right: 1px solid #3D3D3D;"
-                             "   padding: 4px;"
+    tableView->setStyleSheet("QHeaderView::section {"
+                             "   border-top: none;"
                              "}"
                              "QHeaderView::section:first {"
-                             "   border-top: 1px solid #00FF00;" // Green line for BID section
+                             "   border-top: 1px solid #00FF00;"
                              "}"
                              "QHeaderView::section:last {"
-                             "   border-top: 1px solid #FF0000;" // Red line for ASK section
+                             "   border-top: 1px solid #FF0000;"
                              "}");
 }
 
