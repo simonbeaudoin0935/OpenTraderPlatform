@@ -125,7 +125,8 @@ class Stream : public QObject
      * @brief Emitted just before the stream is destroyed, indicating why it closed.
      *
      * - StreamError::Closed: Intentional close via TSClient::closeStream() — no action needed.
-     * - Any other value: The stream ended due to an error — consumer should reconnect.
+     * - BadRequest: Terminal request rejection; do not retry unchanged parameters.
+     * - Recoverable errors: Reconnect with backoff.
      *
      * Thread context: Emitted from TSClient worker thread
      */
@@ -169,6 +170,7 @@ class Stream : public QObject
     const size_t m_heartbeatTimeoutMS = 10000;
     QTimer m_heartbeatTimer;
     bool m_heartbeatPaused = false; // When true, don't restart timer on data reception
+    bool m_finished = false;
 
     static bool s_isShuttingDown;
 };

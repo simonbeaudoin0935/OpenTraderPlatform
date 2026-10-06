@@ -29,6 +29,11 @@ target_link_libraries(IndicatorZoomTests PRIVATE OpenTraderPlatformCommon Qt6::T
 add_test(NAME IndicatorZoomTests COMMAND IndicatorZoomTests)
 set_tests_properties(IndicatorZoomTests PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
 
+add_executable(StreamRecoveryTests StreamRecoveryTests.cpp)
+target_link_libraries(StreamRecoveryTests PRIVATE OpenTraderPlatformCommon Qt6::Test)
+add_test(NAME StreamRecoveryTests COMMAND StreamRecoveryTests)
+set_tests_properties(StreamRecoveryTests PROPERTIES TIMEOUT 30)
+
 add_executable(TradeStationAuthenticationGateTests
     TradeStationAuthenticationGateTests.cpp
     ../Src/Clients/TSClient/AuthenticatedNetworkAccessManager.cpp

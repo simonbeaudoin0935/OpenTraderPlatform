@@ -36,6 +36,7 @@
 #include "PlaybackTypes.h"
 #include "ClosePositions.h"
 #include "RiskTypes.h"
+#include "Misc/CONSTANTS.h"
 #include "TSClient.h"       // For TSClient::AuthStateReason enum
 #include "OrdersDatabase.h" // For StrategyLogEntry
 #include "MarketData/Bars/StreamBars.h"
@@ -171,6 +172,29 @@ struct DisplaySnapshot
     std::optional<QDateTime> processedReplayTime;
 };
 
+struct LiveStreamRetryState
+{
+    bool pending = false;
+    bool terminal = false;
+    int delayMs = StreamConstants::LIVE_RETRY_INITIAL_DELAY_MS;
+
+    [[nodiscard]] std::optional<int> schedule(Stream::StreamError p_reason)
+    {
+        if (p_reason == Stream::StreamError::BadRequest || p_reason == Stream::StreamError::Forbidden)
+        {
+            terminal = true;
+        }
+        if (pending || terminal)
+        {
+            return std::nullopt;
+        }
+        pending = true;
+        const int delay = delayMs;
+        delayMs = qMin(delay * 2, StreamConstants::LIVE_RETRY_MAX_DELAY_MS);
+        return delay;
+    }
+};
+
 class SymbolContext : public QObject
 {
     Q_OBJECT
@@ -205,6 +229,9 @@ class SymbolContext : public QObject
     QPointer<StreamBars> m_streamBars;
     QPointer<StreamMarketDepthAggregate> m_streamMarketDepthAggregate;
     QPointer<StreamQuote> m_streamQuote;
+    LiveStreamRetryState m_barStreamRetry;
+    LiveStreamRetryState m_depthStreamRetry;
+    LiveStreamRetryState m_quoteStreamRetry;
     LiveBarAccumulator m_liveBarAccumulator;    ///< 1-minute bar accumulator (default 60s interval)
     LiveBarAccumulator m_live10sBarAccumulator; ///< 10-second bar accumulator
     BarAggregator m_barAggregator;
@@ -874,6 +901,10 @@ class MainAlgo final : public QObject
     /// Safe to call multiple times (uses UniqueConnection internally).
     void connectBarCloseToOrderEmulator(SymbolContext* p_sc, OrderEmulator* p_emulator);
     void subscribeLiveSymbol(SymbolContext* p_symbolContext);
+    void scheduleLiveStreamRetry(SymbolContext* p_symbolContext,
+                                 LiveStreamRetryState& p_state,
+                                 Stream::StreamError p_reason,
+                                 const QString& p_message);
     void subscribeExistingLiveSymbols();
 
     [[nodiscard]] std::expected<QPointer<SymbolContext>, QString> leaseControlSymbolContext(const QString& p_symbol);

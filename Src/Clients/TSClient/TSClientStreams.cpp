@@ -113,7 +113,7 @@ QPointer<StreamPositions> TSClient::openStreamPositions(const QString& accountID
 
                 INFO << "Opened replay StreamPositions for account" << accountID;
             },
-            Qt::BlockingQueuedConnection);
+            QThread::currentThread() == thread() ? Qt::DirectConnection : Qt::BlockingQueuedConnection);
     }
     else
     {
@@ -137,7 +137,7 @@ QPointer<StreamPositions> TSClient::openStreamPositions(const QString& accountID
                     connect(stream, &Stream::newAmountOfDataReceived, this, &TSClient::processNewAmountOfDataReceived);
                 OBJ_ASSUME_TRUE(c);
             },
-            Qt::BlockingQueuedConnection);
+            QThread::currentThread() == thread() ? Qt::DirectConnection : Qt::BlockingQueuedConnection);
     }
 
     return stream;
@@ -193,7 +193,7 @@ QPointer<StreamOrders> TSClient::openStreamOrders(const QString& accountID)
 
                 INFO << "Opened replay StreamOrders for account" << accountID;
             },
-            Qt::BlockingQueuedConnection);
+            QThread::currentThread() == thread() ? Qt::DirectConnection : Qt::BlockingQueuedConnection);
     }
     else
     {
@@ -214,7 +214,7 @@ QPointer<StreamOrders> TSClient::openStreamOrders(const QString& accountID)
                     connect(stream, &Stream::newAmountOfDataReceived, this, &TSClient::processNewAmountOfDataReceived);
                 OBJ_ASSUME_TRUE(c);
             },
-            Qt::BlockingQueuedConnection);
+            QThread::currentThread() == thread() ? Qt::DirectConnection : Qt::BlockingQueuedConnection);
     }
 
     return stream;
@@ -270,7 +270,7 @@ QPointer<StreamBars> TSClient::openStreamBars(const QString& symbol,
 
                 INFO << "Opened replay StreamBars for" << symbol;
             },
-            Qt::BlockingQueuedConnection);
+            QThread::currentThread() == thread() ? Qt::DirectConnection : Qt::BlockingQueuedConnection);
     }
     else
     {
@@ -303,7 +303,7 @@ QPointer<StreamBars> TSClient::openStreamBars(const QString& symbol,
                 emit streamCountsChanged(StreamBars::getNumberOfBarsStreams(),
                                          StreamMarketDepthAggregate::getNumberOfMarketDepthAggregateStreams());
             },
-            Qt::BlockingQueuedConnection);
+            QThread::currentThread() == thread() ? Qt::DirectConnection : Qt::BlockingQueuedConnection);
     }
 
     return stream;
@@ -314,6 +314,20 @@ TSClient::openStreamMarketDepthAggregate(const QString& symbol, unsigned int dep
 {
     OBJ_ASSUME_GTE(depth, 1u);
     OBJ_ASSUME_LTE(depth, 20u);
+
+    if (QThread::currentThread() != thread())
+    {
+        std::optional<
+            std::expected<QPointer<StreamMarketDepthAggregate>, QFuture<QPointer<StreamMarketDepthAggregate>>>>
+            result;
+        const bool invoked = QMetaObject::invokeMethod(
+            this,
+            [this, &result, &symbol, depth]() { result = openStreamMarketDepthAggregate(symbol, depth); },
+            Qt::BlockingQueuedConnection);
+        OBJ_ASSUME_TRUE(invoked);
+        OBJ_ASSUME_TRUE(result.has_value());
+        return result.value();
+    }
 
     if (!StreamMarketDepthAggregate::canOpenStream())
     {
@@ -364,7 +378,7 @@ TSClient::openStreamMarketDepthAggregate(const QString& symbol, unsigned int dep
 
                 INFO << "Opened replay StreamMarketDepthAggregate for" << symbol;
             },
-            Qt::BlockingQueuedConnection);
+            Qt::DirectConnection);
     }
     else
     {
@@ -399,7 +413,7 @@ TSClient::openStreamMarketDepthAggregate(const QString& symbol, unsigned int dep
                 emit streamCountsChanged(StreamBars::getNumberOfBarsStreams(),
                                          StreamMarketDepthAggregate::getNumberOfMarketDepthAggregateStreams());
             },
-            Qt::BlockingQueuedConnection);
+            Qt::DirectConnection);
     }
 
     return stream;
@@ -449,7 +463,7 @@ QPointer<StreamQuote> TSClient::openStreamQuote(const QStringList& symbols)
 
                 INFO << "Opened replay StreamQuote for" << symbols.size() << "symbols";
             },
-            Qt::BlockingQueuedConnection);
+            QThread::currentThread() == thread() ? Qt::DirectConnection : Qt::BlockingQueuedConnection);
     }
     else
     {
@@ -480,7 +494,7 @@ QPointer<StreamQuote> TSClient::openStreamQuote(const QStringList& symbols)
 
                 INFO << "Opened live StreamQuote for" << symbols.size() << "symbols";
             },
-            Qt::BlockingQueuedConnection);
+            QThread::currentThread() == thread() ? Qt::DirectConnection : Qt::BlockingQueuedConnection);
     }
 
     return stream;

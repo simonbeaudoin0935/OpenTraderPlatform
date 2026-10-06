@@ -66,6 +66,16 @@ Order-entry settings offer an **Enable Success Popup** toggle, persisted under
 `OrderEntry/ResultPopupEnabled`. It controls successful placement notifications
 only; order failures, including risk rejections, always display an error dialog.
 
+Live TradeStation stream creation executes directly on the client thread and
+blocks only callers on other threads. Market-depth capacity checks and queued
+requests are serialized on that thread. Per-symbol bars, quotes, and depth
+subscriptions retain at most one pending retry or queued depth request per kind.
+Transient failures retry with exponential delays from 1 to 30 seconds, reset by
+valid market data. Bad-request/invalid-symbol and forbidden failures disable
+automatic retries for that subscription until its symbol context is recreated.
+Final stream error bodies are parsed before closure, including responses without
+a trailing newline; repeated completion callbacks emit only one error closure.
+
 The Qt Widgets interface uses a VS Code-inspired dark palette while retaining the
 existing trading workspace and panel arrangement. Shared surface, text, border,
 selection, and accent colors are defined in `GUIThemeConstants` in
