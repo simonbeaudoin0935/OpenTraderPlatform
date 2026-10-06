@@ -98,3 +98,16 @@ QMap<TimeFrame, Accumulator> m_accumulators;
 - Does not store bars itself — all storage goes through `BarCache::storeBar`.
 - Historical bars at higher timescales are fetched by `DBClient::fetchHistoricalBars` with
   in-app aggregation from native Databento schemas — `BarAggregator` only handles live data.
+
+## Unit Tests
+
+`Tests/Unit/Algo/BarAggregatorTests.cpp` exercises the public slots and observes their
+signals without starting application singletons or contacting a data provider:
+- Intraday OHLCV aggregation and closing boundaries for 5m, 15m, 30m, 1h, and 4h
+- Accumulator reset after a completed period
+- Daily, Friday weekly, and weekend-aware monthly/year-end closing boundaries
+- Live price updates with volume committed only by closed minute bars
+- Ignoring placeholders and non-open tick updates
+
+The CTest entry is `BarAggregatorTests`, labeled `unit`, and is included in the
+`build-then-run-tests` and `run-unit-tests` VS Code tasks.

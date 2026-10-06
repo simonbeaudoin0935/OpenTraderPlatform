@@ -26,6 +26,11 @@ target_link_libraries(BarHistoryBackfillTests PRIVATE Qt6::Test Qt6::Core)
 add_test(NAME BarHistoryBackfillTests COMMAND BarHistoryBackfillTests)
 set_tests_properties(BarHistoryBackfillTests PROPERTIES LABELS "unit")
 
+add_executable(BarAggregatorTests Algo/BarAggregatorTests.cpp)
+target_link_libraries(BarAggregatorTests PRIVATE OpenTraderPlatformCommon Qt6::Test)
+add_test(NAME BarAggregatorTests COMMAND BarAggregatorTests)
+set_tests_properties(BarAggregatorTests PROPERTIES LABELS "unit")
+
 add_executable(IndicatorZoomTests FrontEnd/IndicatorZoomTests.cpp)
 target_link_libraries(IndicatorZoomTests PRIVATE OpenTraderPlatformCommon Qt6::Test)
 target_compile_options(IndicatorZoomTests PRIVATE -Wno-float-equal)
