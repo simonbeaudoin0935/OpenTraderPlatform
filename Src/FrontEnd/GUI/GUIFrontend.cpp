@@ -1455,7 +1455,9 @@ GUIFrontend::GUIFrontend(MainAlgo* p_mainAlgo, QObject* parent) : QObject(parent
     // Set up the live log display at the bottom
     if (ui->liveLogDisplay)
     {
-        QFont font("Monospace");
+        QFont font;
+        font.setFamilies(GUIThemeConstants::MONOSPACE_FONT_FAMILIES);
+        font.setStyleHint(QFont::Monospace);
         font.setPointSize(9);
         ui->liveLogDisplay->setFont(font);
 
@@ -1670,150 +1672,257 @@ GUIFrontend::~GUIFrontend()
 
 void GUIFrontend::setupDarkTheme(QMainWindow* p_mainWindow)
 {
-    // Define the dark theme palette
-    QPalette darkPalette;
-    darkPalette.setColor(QPalette::Window, QColor(53, 53, 53));
-    darkPalette.setColor(QPalette::WindowText, Qt::white);
-    darkPalette.setColor(QPalette::Base, QColor(25, 25, 25));
-    darkPalette.setColor(QPalette::AlternateBase, QColor(53, 53, 53));
-    darkPalette.setColor(QPalette::ToolTipBase, QColor(53, 53, 53));
-    darkPalette.setColor(QPalette::ToolTipText, Qt::white);
-    darkPalette.setColor(QPalette::Text, Qt::white);
-    darkPalette.setColor(QPalette::Button, QColor(53, 53, 53));
-    darkPalette.setColor(QPalette::ButtonText, Qt::white);
-    darkPalette.setColor(QPalette::BrightText, Qt::red);
-    darkPalette.setColor(QPalette::Link, QColor(42, 130, 218));
-    darkPalette.setColor(QPalette::Highlight, QColor(42, 130, 218));
-    darkPalette.setColor(QPalette::HighlightedText, Qt::black);
-    darkPalette.setColor(QPalette::Disabled, QPalette::Text, QColor(150, 150, 150));
-    darkPalette.setColor(QPalette::Disabled, QPalette::ButtonText, QColor(150, 150, 150));
+    QFont applicationFont;
+    applicationFont.setFamilies(GUIThemeConstants::UI_FONT_FAMILIES);
+    applicationFont.setStyleHint(QFont::SansSerif);
+    qApp->setFont(applicationFont);
 
-    // Apply the dark palette to the application
+    const QColor appBackground = QColor::fromString(GUIThemeConstants::APP_BACKGROUND);
+    const QColor sidebarBackground = QColor::fromString(GUIThemeConstants::SIDEBAR_BACKGROUND);
+    const QColor panelBackground = QColor::fromString(GUIThemeConstants::PANEL_BACKGROUND);
+    const QColor textColor = QColor::fromString(GUIThemeConstants::TEXT_PRIMARY);
+    const QColor mutedTextColor = QColor::fromString(GUIThemeConstants::TEXT_MUTED);
+    const QColor accentColor = QColor::fromString(GUIThemeConstants::ACCENT);
+    const QColor selectionColor = QColor::fromString(GUIThemeConstants::SELECTION_BACKGROUND);
+
+    QPalette darkPalette;
+    darkPalette.setColor(QPalette::Window, appBackground);
+    darkPalette.setColor(QPalette::WindowText, textColor);
+    darkPalette.setColor(QPalette::Base, appBackground);
+    darkPalette.setColor(QPalette::AlternateBase, sidebarBackground);
+    darkPalette.setColor(QPalette::ToolTipBase, panelBackground);
+    darkPalette.setColor(QPalette::ToolTipText, textColor);
+    darkPalette.setColor(QPalette::Text, textColor);
+    darkPalette.setColor(QPalette::Button, panelBackground);
+    darkPalette.setColor(QPalette::ButtonText, textColor);
+    darkPalette.setColor(QPalette::BrightText, QColor("#f14c4c"));
+    darkPalette.setColor(QPalette::Link, accentColor);
+    darkPalette.setColor(QPalette::Highlight, selectionColor);
+    darkPalette.setColor(QPalette::HighlightedText, Qt::white);
+    darkPalette.setColor(QPalette::Disabled, QPalette::Text, mutedTextColor);
+    darkPalette.setColor(QPalette::Disabled, QPalette::ButtonText, mutedTextColor);
+
     p_mainWindow->setPalette(darkPalette);
     qApp->setPalette(darkPalette);
 
-    // Set stylesheet for specific widgets and components
-    QString styleSheet = R"(
+    QString styleSheet = QString::fromLatin1(R"(
         QWidget {
-            background-color: #333333;
-            color: #FFFFFF;
+            background-color: %1;
+            color: %5;
+            selection-background-color: %9;
+            selection-color: #ffffff;
+        }
+        QMainWindow::separator {
+            background-color: %7;
+        }
+        QSplitter::handle {
+            background-color: %7;
+        }
+        QSplitter::handle:hover {
+            background-color: %8;
+        }
+        QSplitter::handle:horizontal {
+            width: 4px;
+        }
+        QSplitter::handle:vertical {
+            height: 4px;
         }
         QMenuBar {
-            background-color: #444444;
+            background-color: %2;
+            border-bottom: 1px solid %7;
+        }
+        QMenuBar::item {
+            padding: 5px 8px;
         }
         QMenuBar::item:selected {
-            background-color: #555555;
+            background-color: %3;
         }
         QMenu {
-            background-color: #444444;
-            border: 1px solid #555555;
+            background-color: %3;
+            border: 1px solid %7;
         }
         QMenu::item:selected {
-            background-color: #555555;
+            background-color: %9;
         }
         QToolBar {
-            background-color: #444444;
-            border: none;
+            background-color: %2;
+            border-bottom: 1px solid %7;
+            spacing: 6px;
         }
         QToolButton {
-            background-color: #444444;
-            border: none;
+            background-color: %3;
+            color: %5;
+            border: 1px solid %7;
+            border-radius: 2px;
+            padding: 4px 6px;
         }
         QToolButton:hover {
-            background-color: #555555;
+            background-color: %4;
+            border-color: %8;
+        }
+        QToolButton:pressed {
+            background-color: %9;
+        }
+        ChartToolbar {
+            background-color: %2;
+            border-bottom: 1px solid %7;
         }
         QStatusBar {
-            background-color: #333333;
-            color: #CCCCCC;
+            background-color: %2;
+            color: %5;
+            border-top: 1px solid %7;
         }
-        QTextEdit, QLineEdit {
-            background-color: #222222;
-            color: #FFFFFF;
-            border: 1px solid #555555;
+        QLineEdit, QTextEdit, QPlainTextEdit,
+        QSpinBox, QDoubleSpinBox, QDateEdit, QTimeEdit, QComboBox {
+            background-color: %4;
+            color: %5;
+            border: 1px solid %7;
+            border-radius: 2px;
+            padding: 4px 6px;
+        }
+        QLineEdit:focus, QTextEdit:focus, QPlainTextEdit:focus,
+        QSpinBox:focus, QDoubleSpinBox:focus, QDateEdit:focus, QTimeEdit:focus, QComboBox:focus {
+            border: 1px solid %8;
+        }
+        QComboBox::drop-down {
+            border: none;
+        }
+        QComboBox QAbstractItemView {
+            background-color: %3;
+            color: %5;
+            border: 1px solid %7;
+            selection-background-color: %9;
         }
         QTabWidget::pane {
-            border: 1px solid #555555;
+            background-color: %1;
+            border: 1px solid %7;
         }
         QTabBar::tab {
-            background-color: #333333;
-            color: #CCCCCC;
-            border: 1px solid #555555;
-            padding: 5px;
+            background-color: %3;
+            color: %5;
+            border: none;
+            border-right: 1px solid %7;
+            padding: 8px 14px;
+        }
+        QTabBar::tab:hover {
+            background-color: %4;
         }
         QTabBar::tab:selected {
-            background-color: #444444;
-            color: #FFFFFF;
+            background-color: %1;
+            color: #ffffff;
+            border-top: 2px solid %8;
         }
         QScrollBar:vertical {
-            background-color: #333333;
-            width: 10px;
+            background-color: %1;
+            width: 12px;
             margin: 0px;
         }
         QScrollBar::handle:vertical {
-            background-color: #666666;
+            background-color: %7;
             min-height: 20px;
+        }
+        QScrollBar::handle:vertical:hover {
+            background-color: %6;
         }
         QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical {
             height: 0px;
         }
         QScrollBar:horizontal {
-            background-color: #333333;
-            height: 10px;
+            background-color: %1;
+            height: 12px;
             margin: 0px;
         }
         QScrollBar::handle:horizontal {
-            background-color: #666666;
+            background-color: %7;
             min-width: 20px;
+        }
+        QScrollBar::handle:horizontal:hover {
+            background-color: %6;
         }
         QScrollBar::add-line:horizontal, QScrollBar::sub-line:horizontal {
             width: 0px;
         }
         QHeaderView::section {
-            background-color: #444444;
-            color: #FFFFFF;
-            padding: 5px;
-            border: 1px solid #555555;
+            background-color: %2;
+            color: %5;
+            padding: 5px 8px;
+            border: none;
+            border-bottom: 1px solid %7;
+            border-right: 1px solid %7;
         }
-        QTableView {
-            gridline-color: #555555;
-            background-color: #222222;
-            color: #FFFFFF;
+        QTableView, QTableWidget, QTreeWidget {
+            gridline-color: %7;
+            background-color: %1;
+            alternate-background-color: %2;
+            color: %5;
+            border: 1px solid %7;
         }
-        QTableView::item:selected {
-            background-color: #3A6EA5;
+        QTableView::item:hover, QTableWidget::item:hover, QTreeWidget::item:hover {
+            background-color: %3;
         }
-        QComboBox {
-            background-color: #444444;
-            color: #FFFFFF;
-            border: 1px solid #555555;
-            padding: 2px;
-        }
-        QComboBox::drop-down {
-            background-color: #555555;
-        }
-        QComboBox QAbstractItemView {
-            background-color: #444444;
-            color: #FFFFFF;
+        QTableView::item:selected, QTableWidget::item:selected, QTreeWidget::item:selected {
+            background-color: %9;
+            color: #ffffff;
         }
         QPushButton {
-            background-color: #444444;
-            color: #FFFFFF;
-            border: 1px solid #555555;
-            padding: 4px 8px;
+            background-color: %3;
+            color: %5;
+            border: 1px solid %7;
+            border-radius: 2px;
+            padding: 5px 10px;
         }
         QPushButton:hover {
-            background-color: #555555;
+            background-color: %4;
+            border-color: %8;
         }
         QPushButton:pressed {
-            background-color: #666666;
+            background-color: %9;
+        }
+        QPushButton:disabled {
+            background-color: %2;
+            color: %6;
+            border-color: %7;
         }
         QCheckBox, QRadioButton {
-            color: #FFFFFF;
+            color: %5;
         }
-        QLabel {
-            color: #FFFFFF;
+        QCheckBox::indicator, QRadioButton::indicator {
+            width: 14px;
+            height: 14px;
         }
-    )";
+        QCheckBox::indicator:unchecked, QRadioButton::indicator:unchecked {
+            background-color: %4;
+            border: 1px solid %7;
+        }
+        QCheckBox::indicator:checked, QRadioButton::indicator:checked {
+            background-color: %8;
+            border: 1px solid %8;
+        }
+        QProgressBar {
+            background-color: %4;
+            color: %5;
+            border: 1px solid %7;
+            border-radius: 2px;
+            text-align: center;
+        }
+        QProgressBar::chunk {
+            background-color: %8;
+        }
+        QToolTip {
+            background-color: %3;
+            color: %5;
+            border: 1px solid %7;
+        }
+    )")
+                             .arg(QString::fromLatin1(GUIThemeConstants::APP_BACKGROUND))
+                             .arg(QString::fromLatin1(GUIThemeConstants::SIDEBAR_BACKGROUND))
+                             .arg(QString::fromLatin1(GUIThemeConstants::PANEL_BACKGROUND))
+                             .arg(QString::fromLatin1(GUIThemeConstants::INPUT_BACKGROUND))
+                             .arg(QString::fromLatin1(GUIThemeConstants::TEXT_PRIMARY))
+                             .arg(QString::fromLatin1(GUIThemeConstants::TEXT_MUTED))
+                             .arg(QString::fromLatin1(GUIThemeConstants::BORDER))
+                             .arg(QString::fromLatin1(GUIThemeConstants::ACCENT))
+                             .arg(QString::fromLatin1(GUIThemeConstants::SELECTION_BACKGROUND));
 
     qApp->setStyleSheet(styleSheet);
 }

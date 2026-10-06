@@ -1,4 +1,5 @@
 #include "BalanceWidget.h"
+#include "CONSTANTS.h"
 #include <QTableView>
 #include <QHeaderView>
 #include <QVBoxLayout>
@@ -80,28 +81,15 @@ void BalanceWidget::setupUI()
 
 void BalanceWidget::setupStyles()
 {
-    // Style the header label
-    headerLabel->setStyleSheet("QLabel {"
-                               "   background-color: #2D2D2D;"
-                               "   color: #FFFFFF;"
-                               "   padding: 4px;"
-                               "   border-bottom: 1px solid #3D3D3D;"
-                               "}");
-
-    // Style the table
-    tableView->setStyleSheet("QTableView {"
-                             "   alternate-background-color: #1C1C1C;"
-                             "   background-color: #242424;"
-                             "   color: white;"
-                             "   gridline-color: #3D3D3D;"
-                             "}"
-                             "QHeaderView::section {"
-                             "   background-color: #2D2D2D;"
-                             "   color: white;"
-                             "   border: none;"
-                             "   border-right: 1px solid #3D3D3D;"
-                             "   padding: 4px;"
-                             "}");
+    headerLabel->setStyleSheet(QStringLiteral("QLabel {"
+                                              "   background-color: %1;"
+                                              "   color: %2;"
+                                              "   padding: 4px;"
+                                              "   border-bottom: 1px solid %3;"
+                                              "}")
+                                   .arg(QString::fromLatin1(GUIThemeConstants::SIDEBAR_BACKGROUND))
+                                   .arg(QString::fromLatin1(GUIThemeConstants::TEXT_PRIMARY))
+                                   .arg(QString::fromLatin1(GUIThemeConstants::BORDER)));
 }
 
 void BalanceWidget::updateBalance(const Balance& balance)

@@ -1,4 +1,5 @@
 #include "StrategyLogWidget.h"
+#include "CONSTANTS.h"
 
 #include "MainAlgo.h"
 #include "StrategyManager.h"
@@ -62,7 +63,9 @@ void StrategyLogWidget::setupUI()
 
     // Log display
     m_logDisplay->setReadOnly(true);
-    QFont font("Monospace");
+    QFont font;
+    font.setFamilies(GUIThemeConstants::MONOSPACE_FONT_FAMILIES);
+    font.setStyleHint(QFont::Monospace);
     font.setPointSize(9);
     m_logDisplay->setFont(font);
     mainLayout->addWidget(m_logDisplay, 1);
@@ -70,41 +73,47 @@ void StrategyLogWidget::setupUI()
 
 void StrategyLogWidget::setupStyles()
 {
-    // Header background matches the logging tab aesthetic
-    setStyleSheet("StrategyLogWidget {"
-                  "  background-color: #1A1A1A;"
-                  "  border-left: 1px solid #3A3A3A;"
-                  "}"
-                  "QLabel {"
-                  "  color: #AAAAAA;"
-                  "  font-size: 11px;"
-                  "  font-weight: bold;"
-                  "}"
-                  "QComboBox {"
-                  "  background-color: #2D2D2D;"
-                  "  color: #CCCCCC;"
-                  "  border: 1px solid #3D3D3D;"
-                  "  font-size: 10px;"
-                  "  padding: 1px 4px;"
-                  "}"
-                  "QPushButton {"
-                  "  background-color: #3D3D3D;"
-                  "  color: #AAAAAA;"
-                  "  border: none;"
-                  "  font-size: 11px;"
-                  "  font-weight: bold;"
-                  "  border-radius: 2px;"
-                  "}"
-                  "QPushButton:hover {"
-                  "  background-color: #E05050;"
-                  "  color: white;"
-                  "}"
-                  "QTextEdit {"
-                  "  background-color: #111111;"
-                  "  color: #CCCCCC;"
-                  "  border: none;"
-                  "  selection-background-color: #2C539E;"
-                  "}");
+    setStyleSheet(QStringLiteral("StrategyLogWidget {"
+                                 "  background-color: %1;"
+                                 "  border-left: 1px solid %2;"
+                                 "}"
+                                 "QLabel {"
+                                 "  color: %3;"
+                                 "  font-size: 11px;"
+                                 "  font-weight: bold;"
+                                 "}"
+                                 "QComboBox {"
+                                 "  background-color: %4;"
+                                 "  color: %5;"
+                                 "  border: 1px solid %2;"
+                                 "  font-size: 10px;"
+                                 "  padding: 1px 4px;"
+                                 "}"
+                                 "QPushButton {"
+                                 "  background-color: %4;"
+                                 "  color: %3;"
+                                 "  border: none;"
+                                 "  font-size: 11px;"
+                                 "  font-weight: bold;"
+                                 "  border-radius: 2px;"
+                                 "}"
+                                 "QPushButton:hover {"
+                                 "  background-color: #E05050;"
+                                 "  color: white;"
+                                 "}"
+                                 "QTextEdit {"
+                                 "  background-color: %6;"
+                                 "  color: %5;"
+                                 "  border: none;"
+                                 "  selection-background-color: %7;"
+                                 "}")
+                      .arg(QString::fromLatin1(GUIThemeConstants::SIDEBAR_BACKGROUND))
+                      .arg(QString::fromLatin1(GUIThemeConstants::BORDER))
+                      .arg(QString::fromLatin1(GUIThemeConstants::TEXT_MUTED))
+                      .arg(QString::fromLatin1(GUIThemeConstants::PANEL_BACKGROUND))
+                      .arg(QString::fromLatin1(GUIThemeConstants::TEXT_PRIMARY))
+                      .arg(QString::fromLatin1(GUIThemeConstants::APP_BACKGROUND))
+                      .arg(QString::fromLatin1(GUIThemeConstants::SELECTION_BACKGROUND)));
 }
 
 void StrategyLogWidget::setStrategy(const QString& p_strategyID, const QString& p_strategyName)

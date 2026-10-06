@@ -6,6 +6,7 @@
 #include <QtMath>
 
 #include "StockPriceChart.h"
+#include "CONSTANTS.h"
 #include "IndexToTimeTicker.h"
 #include "Indicators/ChartIndicatorManager.h"
 #include "Indicators/EmaIndicator.h"
@@ -184,30 +185,32 @@ StockPriceChart::StockPriceChart(QWidget* parent) : QWidget(parent)
     m_customPlot->axisRect()->axis(QCPAxis::atRight)->setVisible(true);
     m_customPlot->axisRect()->axis(QCPAxis::atRight)->setLabel("");
 
-    // Apply dark theme
-    m_customPlot->setBackground(QBrush(QColor(75, 75, 80)));
-    m_customPlot->xAxis->setBasePen(QPen(QColor(220, 220, 220)));
-    m_customPlot->yAxis->setBasePen(QPen(QColor(200, 200, 200)));
-    m_customPlot->axisRect()->axis(QCPAxis::atRight)->setBasePen(QPen(QColor(220, 220, 220)));
-    m_customPlot->xAxis->setTickPen(QPen(QColor(220, 220, 220)));
-    m_customPlot->yAxis->setTickPen(QPen(QColor(200, 200, 200)));
-    m_customPlot->axisRect()->axis(QCPAxis::atRight)->setTickPen(QPen(QColor(220, 220, 220)));
-    m_customPlot->xAxis->setSubTickPen(QPen(QColor(220, 220, 220)));
+    const QColor chartBackground = QColor::fromString(GUIThemeConstants::APP_BACKGROUND);
+    const QColor chartText = QColor::fromString(GUIThemeConstants::TEXT_PRIMARY);
+    const QColor chartBorder = QColor::fromString(GUIThemeConstants::BORDER);
+    m_customPlot->setBackground(QBrush(chartBackground));
+    m_customPlot->xAxis->setBasePen(QPen(chartText));
+    m_customPlot->yAxis->setBasePen(QPen(chartText));
+    m_customPlot->axisRect()->axis(QCPAxis::atRight)->setBasePen(QPen(chartText));
+    m_customPlot->xAxis->setTickPen(QPen(chartText));
+    m_customPlot->yAxis->setTickPen(QPen(chartText));
+    m_customPlot->axisRect()->axis(QCPAxis::atRight)->setTickPen(QPen(chartText));
+    m_customPlot->xAxis->setSubTickPen(QPen(chartText));
     m_customPlot->yAxis->setSubTickPen(Qt::NoPen);
-    m_customPlot->axisRect()->axis(QCPAxis::atRight)->setSubTickPen(QPen(QColor(220, 220, 220)));
-    m_customPlot->xAxis->setTickLabelColor(QColor(220, 220, 220));
-    m_customPlot->yAxis->setTickLabelColor(QColor(210, 210, 210));
-    m_customPlot->axisRect()->axis(QCPAxis::atRight)->setTickLabelColor(QColor(220, 220, 220));
-    m_customPlot->xAxis->setLabelColor(QColor(220, 220, 220));
-    m_customPlot->yAxis->setLabelColor(QColor(210, 210, 210));
-    m_customPlot->axisRect()->axis(QCPAxis::atRight)->setLabelColor(QColor(220, 220, 220));
-    m_customPlot->xAxis->grid()->setPen(QPen(QColor(70, 70, 70), 1, Qt::DotLine));
+    m_customPlot->axisRect()->axis(QCPAxis::atRight)->setSubTickPen(QPen(chartText));
+    m_customPlot->xAxis->setTickLabelColor(chartText);
+    m_customPlot->yAxis->setTickLabelColor(chartText);
+    m_customPlot->axisRect()->axis(QCPAxis::atRight)->setTickLabelColor(chartText);
+    m_customPlot->xAxis->setLabelColor(chartText);
+    m_customPlot->yAxis->setLabelColor(chartText);
+    m_customPlot->axisRect()->axis(QCPAxis::atRight)->setLabelColor(chartText);
+    m_customPlot->xAxis->grid()->setPen(QPen(chartBorder, 1, Qt::DotLine));
     m_customPlot->xAxis->grid()->setZeroLinePen(Qt::NoPen); // Disable zero-line at origin
     m_customPlot->yAxis->grid()->setVisible(false);
     m_customPlot->yAxis->setNumberFormat("gb");
     m_customPlot->yAxis->setNumberPrecision(3);
     m_customPlot->axisRect()->axis(QCPAxis::atRight)->grid()->setVisible(true);
-    m_customPlot->axisRect()->axis(QCPAxis::atRight)->grid()->setPen(QPen(QColor(70, 70, 70), 1, Qt::DotLine));
+    m_customPlot->axisRect()->axis(QCPAxis::atRight)->grid()->setPen(QPen(chartBorder, 1, Qt::DotLine));
     m_customPlot->axisRect()->axis(QCPAxis::atRight)->grid()->setZeroLinePen(Qt::NoPen); // Disable zero-line at origin
 
     // Keep a collapsed legacy volume axis rect so existing x-range sync wiring remains stable.
@@ -225,7 +228,7 @@ StockPriceChart::StockPriceChart(QWidget* parent) : QWidget(parent)
     m_volumeAxisRect->setMargins(QMargins(0, 0, 0, 0));
 
     // Keep the legacy pane fully hidden.
-    m_volumeAxisRect->setBackground(QBrush(QColor(75, 75, 80)));
+    m_volumeAxisRect->setBackground(QBrush(chartBackground));
     m_volumeAxisRect->axis(QCPAxis::atBottom)->setBasePen(Qt::NoPen);
     m_volumeAxisRect->axis(QCPAxis::atLeft)->setVisible(false);
     m_volumeAxisRect->axis(QCPAxis::atRight)->setVisible(false);
@@ -251,19 +254,19 @@ StockPriceChart::StockPriceChart(QWidget* parent) : QWidget(parent)
     m_macdAxisRect->setAutoMargins(QCP::msLeft | QCP::msRight | QCP::msBottom);
     m_macdAxisRect->setMargins(QMargins(0, 0, 0, 0));
 
-    m_macdAxisRect->setBackground(QBrush(QColor(75, 75, 80)));
-    m_macdAxisRect->axis(QCPAxis::atBottom)->setBasePen(QPen(QColor(220, 220, 220)));
+    m_macdAxisRect->setBackground(QBrush(chartBackground));
+    m_macdAxisRect->axis(QCPAxis::atBottom)->setBasePen(QPen(chartText));
     m_macdAxisRect->axis(QCPAxis::atLeft)->setVisible(false);
     m_macdAxisRect->axis(QCPAxis::atRight)->setVisible(true);
-    m_macdAxisRect->axis(QCPAxis::atRight)->setBasePen(QPen(QColor(220, 220, 220)));
-    m_macdAxisRect->axis(QCPAxis::atBottom)->setTickPen(QPen(QColor(220, 220, 220)));
-    m_macdAxisRect->axis(QCPAxis::atRight)->setTickPen(QPen(QColor(220, 220, 220)));
-    m_macdAxisRect->axis(QCPAxis::atBottom)->setTickLabelColor(QColor(220, 220, 220));
-    m_macdAxisRect->axis(QCPAxis::atRight)->setTickLabelColor(QColor(220, 220, 220));
-    m_macdAxisRect->axis(QCPAxis::atBottom)->grid()->setPen(QPen(QColor(70, 70, 70), 1, Qt::DotLine));
+    m_macdAxisRect->axis(QCPAxis::atRight)->setBasePen(QPen(chartText));
+    m_macdAxisRect->axis(QCPAxis::atBottom)->setTickPen(QPen(chartText));
+    m_macdAxisRect->axis(QCPAxis::atRight)->setTickPen(QPen(chartText));
+    m_macdAxisRect->axis(QCPAxis::atBottom)->setTickLabelColor(chartText);
+    m_macdAxisRect->axis(QCPAxis::atRight)->setTickLabelColor(chartText);
+    m_macdAxisRect->axis(QCPAxis::atBottom)->grid()->setPen(QPen(chartBorder, 1, Qt::DotLine));
     m_macdAxisRect->axis(QCPAxis::atBottom)->grid()->setZeroLinePen(Qt::NoPen);
     m_macdAxisRect->axis(QCPAxis::atRight)->grid()->setVisible(true);
-    m_macdAxisRect->axis(QCPAxis::atRight)->grid()->setPen(QPen(QColor(70, 70, 70), 1, Qt::DotLine));
+    m_macdAxisRect->axis(QCPAxis::atRight)->grid()->setPen(QPen(chartBorder, 1, Qt::DotLine));
     m_macdAxisRect->axis(QCPAxis::atRight)->grid()->setZeroLinePen(QPen(QColor(110, 110, 110), 1, Qt::DashLine));
 
     // Create fourth axis rect for RSI chart (collapsible)
@@ -277,19 +280,19 @@ StockPriceChart::StockPriceChart(QWidget* parent) : QWidget(parent)
     m_rsiAxisRect->setAutoMargins(QCP::msLeft | QCP::msRight | QCP::msBottom);
     m_rsiAxisRect->setMargins(QMargins(0, 0, 0, 0));
 
-    m_rsiAxisRect->setBackground(QBrush(QColor(75, 75, 80)));
-    m_rsiAxisRect->axis(QCPAxis::atBottom)->setBasePen(QPen(QColor(220, 220, 220)));
+    m_rsiAxisRect->setBackground(QBrush(chartBackground));
+    m_rsiAxisRect->axis(QCPAxis::atBottom)->setBasePen(QPen(chartText));
     m_rsiAxisRect->axis(QCPAxis::atLeft)->setVisible(false);
     m_rsiAxisRect->axis(QCPAxis::atRight)->setVisible(true);
-    m_rsiAxisRect->axis(QCPAxis::atRight)->setBasePen(QPen(QColor(220, 220, 220)));
-    m_rsiAxisRect->axis(QCPAxis::atBottom)->setTickPen(QPen(QColor(220, 220, 220)));
-    m_rsiAxisRect->axis(QCPAxis::atRight)->setTickPen(QPen(QColor(220, 220, 220)));
-    m_rsiAxisRect->axis(QCPAxis::atBottom)->setTickLabelColor(QColor(220, 220, 220));
-    m_rsiAxisRect->axis(QCPAxis::atRight)->setTickLabelColor(QColor(220, 220, 220));
-    m_rsiAxisRect->axis(QCPAxis::atBottom)->grid()->setPen(QPen(QColor(70, 70, 70), 1, Qt::DotLine));
+    m_rsiAxisRect->axis(QCPAxis::atRight)->setBasePen(QPen(chartText));
+    m_rsiAxisRect->axis(QCPAxis::atBottom)->setTickPen(QPen(chartText));
+    m_rsiAxisRect->axis(QCPAxis::atRight)->setTickPen(QPen(chartText));
+    m_rsiAxisRect->axis(QCPAxis::atBottom)->setTickLabelColor(chartText);
+    m_rsiAxisRect->axis(QCPAxis::atRight)->setTickLabelColor(chartText);
+    m_rsiAxisRect->axis(QCPAxis::atBottom)->grid()->setPen(QPen(chartBorder, 1, Qt::DotLine));
     m_rsiAxisRect->axis(QCPAxis::atBottom)->grid()->setZeroLinePen(Qt::NoPen);
     m_rsiAxisRect->axis(QCPAxis::atRight)->grid()->setVisible(true);
-    m_rsiAxisRect->axis(QCPAxis::atRight)->grid()->setPen(QPen(QColor(70, 70, 70), 1, Qt::DotLine));
+    m_rsiAxisRect->axis(QCPAxis::atRight)->grid()->setPen(QPen(chartBorder, 1, Qt::DotLine));
     m_rsiAxisRect->axis(QCPAxis::atRight)->grid()->setZeroLinePen(QPen(QColor(110, 110, 110), 1, Qt::DashLine));
 
     // Create fifth axis rect for strategy status panel (collapsible)

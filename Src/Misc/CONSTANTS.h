@@ -18,6 +18,21 @@
  * than defined in individual files.
  */
 
+namespace GUIThemeConstants
+{
+    inline const QStringList UI_FONT_FAMILIES = {"Segoe UI", "Lato", "Noto Sans", "sans-serif"};
+    inline const QStringList MONOSPACE_FONT_FAMILIES = {"Cascadia Code", "Consolas", "DejaVu Sans Mono", "monospace"};
+    inline constexpr char APP_BACKGROUND[] = "#1e1e1e";
+    inline constexpr char SIDEBAR_BACKGROUND[] = "#252526";
+    inline constexpr char PANEL_BACKGROUND[] = "#2d2d30";
+    inline constexpr char INPUT_BACKGROUND[] = "#3c3c3c";
+    inline constexpr char BORDER[] = "#3c3c3c";
+    inline constexpr char TEXT_PRIMARY[] = "#cccccc";
+    inline constexpr char TEXT_MUTED[] = "#858585";
+    inline constexpr char ACCENT[] = "#007acc";
+    inline constexpr char SELECTION_BACKGROUND[] = "#094771";
+} // namespace GUIThemeConstants
+
 /**
  * @namespace TradingHours
  * @brief Trading hours and timing-related constants

@@ -19,6 +19,7 @@
 #include <QMessageBox>
 #include <QPointer>
 #include <QShortcut>
+#include "CONSTANTS.h"
 #include <algorithm>
 #include <utility>
 
@@ -134,20 +135,27 @@ void StrategyQuickView::setupUI()
 
     // Header row: "Strategies" label + "Load ⊕" button
     auto* header = new QWidget(this);
-    header->setStyleSheet("background-color: #2D2D2D; border-bottom: 1px solid #3D3D3D;");
+    header->setStyleSheet(QStringLiteral("background-color: %1; border-bottom: 1px solid %2;")
+                              .arg(QString::fromLatin1(GUIThemeConstants::SIDEBAR_BACKGROUND))
+                              .arg(QString::fromLatin1(GUIThemeConstants::BORDER)));
     auto* headerLayout = new QHBoxLayout(header);
     headerLayout->setContentsMargins(6, 3, 4, 3);
     headerLayout->setSpacing(4);
 
     m_titleLabel = new QLabel("Strategies", header);
-    m_titleLabel->setStyleSheet("color: #AAAAAA; font-size: 11px; font-weight: bold;");
+    m_titleLabel->setStyleSheet(QStringLiteral("color: %1; font-size: 11px; font-weight: bold;")
+                                    .arg(QString::fromLatin1(GUIThemeConstants::TEXT_MUTED)));
     headerLayout->addWidget(m_titleLabel, 1);
 
     m_loadButton = new QPushButton("⊕ Load", header);
     m_loadButton->setFixedHeight(20);
-    m_loadButton->setStyleSheet("QPushButton { background-color: #3A5A3A; color: #88DD88; border: 1px solid #4A7A4A;"
-                                "              font-size: 10px; padding: 0 6px; border-radius: 2px; }"
-                                "QPushButton:hover { background-color: #4A7A4A; }");
+    m_loadButton->setStyleSheet(
+        QStringLiteral("QPushButton { background-color: %1; color: #ffffff; border: 1px solid %2;"
+                       " font-size: 10px; padding: 0 6px; border-radius: 2px; }"
+                       "QPushButton:hover { background-color: %3; }")
+            .arg(QString::fromLatin1(GUIThemeConstants::ACCENT))
+            .arg(QString::fromLatin1(GUIThemeConstants::ACCENT))
+            .arg(QString::fromLatin1(GUIThemeConstants::SELECTION_BACKGROUND)));
     m_loadButton->setToolTip("Load a strategy executable");
     headerLayout->addWidget(m_loadButton);
     connect(m_loadButton, &QPushButton::clicked, this, &StrategyQuickView::onLoadButtonClicked);
@@ -201,30 +209,9 @@ void StrategyQuickView::setupUI()
 
 void StrategyQuickView::setupStyles()
 {
-    m_tree->setStyleSheet("QTreeWidget {"
-                          "  background-color: #1C1C1C;"
-                          "  color: #CCCCCC;"
-                          "  border: none;"
-                          "  font-size: 12px;"
-                          "}"
-                          "QTreeWidget::item {"
+    m_tree->setStyleSheet("QTreeWidget::item {"
                           "  padding: 2px 2px;"
                           "  border: none;"
-                          "}"
-                          "QTreeWidget::item:hover {"
-                          "  background-color: #2A2A2A;"
-                          "}"
-                          "QTreeWidget::item:selected {"
-                          "  background-color: #2C539E;"
-                          "  color: white;"
-                          "}"
-                          "QHeaderView::section {"
-                          "  background-color: #2D2D2D;"
-                          "  color: #AAAAAA;"
-                          "  padding: 4px;"
-                          "  border-bottom: 1px solid #3D3D3D;"
-                          "  font-size: 11px;"
-                          "  font-weight: bold;"
                           "}"
                           "QTreeWidget::branch:has-children:!has-siblings:closed,"
                           "QTreeWidget::branch:closed:has-children:has-siblings {"

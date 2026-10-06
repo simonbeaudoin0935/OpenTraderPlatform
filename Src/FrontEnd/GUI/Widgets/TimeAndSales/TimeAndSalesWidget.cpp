@@ -1,6 +1,7 @@
 #include "TimeAndSalesWidget.h"
 
 #include "Assume.h"
+#include "CONSTANTS.h"
 #include "LTTng/LTTngTracepoints.h"
 
 TimeAndSalesWidget::TimeAndSalesWidget(QWidget* p_parent) : QWidget(p_parent), m_headerLabel(nullptr), m_table(nullptr)
@@ -40,30 +41,38 @@ void TimeAndSalesWidget::setupUI()
 
 void TimeAndSalesWidget::setupStyles()
 {
-    m_headerLabel->setStyleSheet("QLabel {"
-                                 "   background-color: #2D2D2D;"
-                                 "   color: white;"
-                                 "   font-weight: bold;"
-                                 "   padding: 4px;"
-                                 "   border-bottom: 1px solid #3D3D3D;"
-                                 "}");
+    m_headerLabel->setStyleSheet(QStringLiteral("QLabel {"
+                                                "   background-color: %1;"
+                                                "   color: %2;"
+                                                "   font-weight: bold;"
+                                                "   padding: 4px;"
+                                                "   border-bottom: 1px solid %3;"
+                                                "}")
+                                     .arg(QString::fromLatin1(GUIThemeConstants::SIDEBAR_BACKGROUND))
+                                     .arg(QString::fromLatin1(GUIThemeConstants::TEXT_PRIMARY))
+                                     .arg(QString::fromLatin1(GUIThemeConstants::BORDER)));
 
-    m_table->setStyleSheet("QTableWidget {"
-                           "   background-color: #242424;"
-                           "   alternate-background-color: #1C1C1C;"
-                           "   color: white;"
-                           "   border: none;"
-                           "   font-size: 11px;"
-                           "   gridline-color: #3D3D3D;"
-                           "}"
-                           "QHeaderView::section {"
-                           "   background-color: #2D2D2D;"
-                           "   color: #a0a0a0;"
-                           "   border: none;"
-                           "   border-right: 1px solid #3D3D3D;"
-                           "   font-size: 10px;"
-                           "   padding: 2px;"
-                           "}");
+    m_table->setStyleSheet(QStringLiteral("QTableWidget {"
+                                          "   background-color: %1;"
+                                          "   alternate-background-color: %2;"
+                                          "   color: %3;"
+                                          "   border: none;"
+                                          "   font-size: 11px;"
+                                          "   gridline-color: %4;"
+                                          "}"
+                                          "QHeaderView::section {"
+                                          "   background-color: %2;"
+                                          "   color: %5;"
+                                          "   border: none;"
+                                          "   border-right: 1px solid %4;"
+                                          "   font-size: 10px;"
+                                          "   padding: 2px;"
+                                          "}")
+                               .arg(QString::fromLatin1(GUIThemeConstants::APP_BACKGROUND))
+                               .arg(QString::fromLatin1(GUIThemeConstants::SIDEBAR_BACKGROUND))
+                               .arg(QString::fromLatin1(GUIThemeConstants::TEXT_PRIMARY))
+                               .arg(QString::fromLatin1(GUIThemeConstants::BORDER))
+                               .arg(QString::fromLatin1(GUIThemeConstants::TEXT_MUTED)));
     m_table->setAlternatingRowColors(true);
 }
 

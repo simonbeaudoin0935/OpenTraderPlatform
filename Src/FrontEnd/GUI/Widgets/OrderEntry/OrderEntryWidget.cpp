@@ -557,13 +557,15 @@ void OrderEntryWidget::setupUI()
 
 void OrderEntryWidget::setupStyles()
 {
-    // Style the header label
-    m_headerLabel->setStyleSheet("QLabel {"
-                                 "   background-color: #2D2D2D;"
-                                 "   color: #FFFFFF;"
-                                 "   padding: 4px;"
-                                 "   border-bottom: 1px solid #3D3D3D;"
-                                 "}");
+    m_headerLabel->setStyleSheet(QStringLiteral("QLabel {"
+                                                "   background-color: %1;"
+                                                "   color: %2;"
+                                                "   padding: 4px;"
+                                                "   border-bottom: 1px solid %3;"
+                                                "}")
+                                     .arg(QString::fromLatin1(GUIThemeConstants::SIDEBAR_BACKGROUND))
+                                     .arg(QString::fromLatin1(GUIThemeConstants::TEXT_PRIMARY))
+                                     .arg(QString::fromLatin1(GUIThemeConstants::BORDER)));
 
     // Submit button styling is now handled dynamically in onTradeActionChanged
 }
