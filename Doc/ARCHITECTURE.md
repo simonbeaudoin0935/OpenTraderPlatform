@@ -269,6 +269,22 @@ void totalDataReceivedBytesIncreased(qsizetype bytesIncrease);
 - Forward replay control signals from DBClient to the frontend
 - Pause/resume heartbeat timers on stream receivers during replay
 
+Closed stock positions carry a separate, optional gross realized P/L reconstructed
+from executed orders for the account/symbol's matching flat-to-flat lifecycle.
+`TodaysProfitLoss` from the position stream is unrealized P/L, never a closed
+trade's realized result. Position deletion may precede the final order fill;
+the position remains pending until its entry/exit quantities reconcile, then
+the ledger, table, chart, and loss-cooldown evaluation receive the corrected
+result. Historical positions are also recalculated on load, including review
+mode. Calculations exclude fees and retain full execution-price precision.
+Missing, ambiguous, unsupported, or incomplete fill history is reported as
+unavailable rather than using the last market-price snapshot. Executed
+quantities are retained for partial fills; legacy fully filled orders can use
+their ordered quantity, but legacy partial fills without execution quantities
+cannot be reconciled reliably.
+Synthetic fill estimates used to reconcile order status are explicitly marked
+and excluded from realized accounting until replaced by broker execution data.
+
 **Key Members**:
 ```cpp
 QMap<QString, SymbolContext*> m_symbolContexts;            // Symbol → context (actor)

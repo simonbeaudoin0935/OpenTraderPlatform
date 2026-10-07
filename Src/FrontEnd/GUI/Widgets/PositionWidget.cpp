@@ -213,8 +213,8 @@ void PositionWidget::setupUI()
 
     // Setup model columns (Position ID at END like OrderWidget)
     QStringList headers;
-    headers << "Symbol" << "Quantity" << "Avg Price" << "Last" << "Unrealized P/L" << "Realized P/L" << "Market Value"
-            << "Position ID";
+    headers << "Symbol" << "Quantity" << "Avg Price" << "Last" << "Unrealized P/L" << "Realized P/L (Gross)"
+            << "Market Value" << "Position ID";
     model->setHorizontalHeaderLabels(headers);
 
     // Configure table view
@@ -505,15 +505,22 @@ QList<QStandardItem*> PositionWidget::createRowItems(const Position& position)
     // else: leave empty for closed positions
     items << unrealizedItem;
 
-    // Realized P/L (only for closed positions, uses TodaysProfitLoss field)
-    double realizedPL = position.getTodaysProfitLoss().toDouble();
+    const auto realizedPL = position.getRealizedProfitLoss();
     auto realizedItem = new QStandardItem();
     realizedItem->setTextAlignment(Qt::AlignCenter);
     if (qty == 0)
     {
-        QString text = QString::number(realizedPL, 'f', 2);
-        realizedItem->setText(text);
-        realizedItem->setForeground(realizedPL >= 0 ? QColor(Qt::green) : QColor(Qt::red));
+        if (realizedPL.has_value())
+        {
+            realizedItem->setText(QString::number(realizedPL.value(), 'f', 2));
+            realizedItem->setForeground(realizedPL.value() >= 0 ? QColor(Qt::green) : QColor(Qt::red));
+            realizedItem->setToolTip("Gross realized P/L from executed orders, before fees.");
+        }
+        else
+        {
+            realizedItem->setText("Pending");
+            realizedItem->setToolTip("Realized P/L unavailable until complete position fill history is reconciled.");
+        }
     }
     // else: leave empty for open positions
     items << realizedItem;

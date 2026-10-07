@@ -609,10 +609,13 @@ void StockPriceChart::createClosedPositionPLLabel(PositionVisualization* posViz)
     posViz->plLabel->setLayer("overlay");
 
     // Format P&L text
-    QString plText =
-        QString("%1$%2").arg(posViz->realizedPL >= 0 ? "+" : "").arg(QString::number(posViz->realizedPL, 'f', 2));
+    const QString plText = posViz->realizedPLAvailable ? QString("%1$%2 gross")
+                                                             .arg(posViz->realizedPL >= 0 ? "+" : "")
+                                                             .arg(QString::number(posViz->realizedPL, 'f', 2))
+                                                       : QStringLiteral("P/L pending");
 
-    QColor textColor = posViz->realizedPL >= 0 ? ORDER_VIZ_GREEN : ORDER_VIZ_RED;
+    const QColor textColor = posViz->realizedPLAvailable ? (posViz->realizedPL >= 0 ? ORDER_VIZ_GREEN : ORDER_VIZ_RED)
+                                                         : palette().color(QPalette::Text);
     posViz->plLabel->setColor(textColor);
     posViz->plLabel->setText(plText);
     posViz->plLabel->setVisible(m_orderVisualizationsVisible);
@@ -683,7 +686,8 @@ void StockPriceChart::finalizeClosedPosition(PositionVisualization* posViz)
         posViz->dynamicLine = nullptr;
     }
 
-    const QColor color = posViz->realizedPL >= 0 ? ORDER_VIZ_GREEN : ORDER_VIZ_RED;
+    const QColor color = posViz->realizedPLAvailable ? (posViz->realizedPL >= 0 ? ORDER_VIZ_GREEN : ORDER_VIZ_RED)
+                                                     : palette().color(QPalette::Text);
     for (QCPItemLine* line: posViz->traceSegments)
     {
         line->setPen(QPen(color, ORDER_VIZ_LINE_WIDTH - 1, Qt::DotLine));
@@ -1448,7 +1452,8 @@ void StockPriceChart::onPositionClosed(const Position& position)
     posViz->lastUpdateTimestamp = position.getTimestamp();
     posViz->isShort = position.getLongShort().toUpper() == "SHORT";
     posViz->avgEntryPrice = position.getAveragePrice().toDouble();
-    posViz->realizedPL = position.getTodaysProfitLoss().toDouble();
+    posViz->realizedPLAvailable = position.getRealizedProfitLoss().has_value();
+    posViz->realizedPL = position.getRealizedProfitLoss().value_or(0.0);
     posViz->currentQuantity = 0;
     posViz->isClosed = true;
 

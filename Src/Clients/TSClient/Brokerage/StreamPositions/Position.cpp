@@ -1,6 +1,7 @@
 #include <QJsonDocument>
 
 #include "Position.h"
+#include "CONSTANTS.h"
 
 Position::Position(const QJsonObject& jsonObj, bool isUpdate_) : isUpdate(isUpdate_)
 {
@@ -20,10 +21,18 @@ Position::Position(const QJsonObject& jsonObj, bool isUpdate_) : isUpdate(isUpda
     if (jsonObj.contains("OpenedDateTime"))
     {
         openedDateTime = QDateTime::fromString(jsonObj["OpenedDateTime"].toString(), Qt::ISODate);
+        if (openedDateTime.timeSpec() == Qt::LocalTime)
+        {
+            openedDateTime.setTimeZone(TradingHours::MARKET_TIMEZONE);
+        }
     }
     if (jsonObj.contains("ClosedDateTime"))
     {
         closedDateTime = QDateTime::fromString(jsonObj["ClosedDateTime"].toString(), Qt::ISODate);
+        if (closedDateTime.timeSpec() == Qt::LocalTime)
+        {
+            closedDateTime.setTimeZone(TradingHours::MARKET_TIMEZONE);
+        }
     }
 
     initialRequirement = jsonObj["InitialRequirement"].toString();
@@ -37,6 +46,10 @@ Position::Position(const QJsonObject& jsonObj, bool isUpdate_) : isUpdate(isUpda
     symbol = jsonObj["Symbol"].toString();
     timestamp = QDateTime::fromString(jsonObj["Timestamp"].toString(), Qt::ISODate);
     todaysProfitLoss = jsonObj["TodaysProfitLoss"].toString();
+    if (jsonObj["RealizedProfitLoss"].isDouble())
+    {
+        realizedProfitLoss = jsonObj["RealizedProfitLoss"].toDouble();
+    }
     totalCost = jsonObj["TotalCost"].toString();
     unrealizedProfitLoss = jsonObj["UnrealizedProfitLoss"].toString();
     unrealizedProfitLossPercent = jsonObj["UnrealizedProfitLossPercent"].toString();
@@ -151,6 +164,10 @@ QString Position::toJsonString() const
     jsonObj["Symbol"] = symbol;
     jsonObj["Timestamp"] = timestamp.toString(Qt::ISODate);
     jsonObj["TodaysProfitLoss"] = todaysProfitLoss;
+    if (realizedProfitLoss.has_value())
+    {
+        jsonObj["RealizedProfitLoss"] = realizedProfitLoss.value();
+    }
     jsonObj["TotalCost"] = totalCost;
     jsonObj["UnrealizedProfitLoss"] = unrealizedProfitLoss;
     jsonObj["UnrealizedProfitLossPercent"] = unrealizedProfitLossPercent;

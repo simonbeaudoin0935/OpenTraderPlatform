@@ -262,6 +262,8 @@ class Order
     QString m_symbol;
     QString m_quantity;
     QString m_tradeAction;
+    std::optional<double> m_executedQuantity;
+    bool m_fillIsSynthetic = false;
 
     // status
     Status m_orderStatus;

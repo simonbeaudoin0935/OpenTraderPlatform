@@ -108,6 +108,7 @@ struct PositionVisualization
     int totalBought = 0;
     int totalSold = 0;
     double realizedPL = 0.0;
+    bool realizedPLAvailable = false;
 };
 
 /**

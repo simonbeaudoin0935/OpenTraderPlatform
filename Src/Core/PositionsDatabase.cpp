@@ -1,4 +1,5 @@
 #include "PositionsDatabase.h"
+#include "PositionPnL.h"
 
 #include <QSqlQuery>
 #include <QSqlError>
@@ -188,8 +189,9 @@ bool PositionsDatabase::insertPosition(const Position& p_position, const QDateTi
         query.addBindValue(QVariant()); // NULL value for SQL
     }
 
-    // Closed datetime is NULL on insert (position just opened)
-    query.addBindValue(QVariant());
+    query.addBindValue(p_position.getClosedDateTime().isValid()
+                           ? QVariant(p_position.getClosedDateTime().toString(Qt::ISODate))
+                           : QVariant());
 
     // Store the full position as JSON for easy reconstruction
     query.addBindValue(p_position.toJsonString());
@@ -345,12 +347,71 @@ QMap<QString, Position> PositionsDatabase::loadAllPositions() const
                 jsonObj["ClosedDateTime"] = closedDateTimeStr;
             }
             Position position(jsonObj);
+            if (position.isDeleted() || qFuzzyIsNull(position.getQuantity().toDouble()))
+            {
+                position = reconcileClosedPosition(position);
+            }
             positions.insert(positionId, position);
         }
     }
 
     INFO << "Loaded" << positions.size() << "positions from database";
     return positions;
+}
+
+Position PositionsDatabase::reconcileClosedPosition(const Position& p_position) const
+{
+    if (QThread::currentThread() != thread())
+    {
+        Position result = p_position;
+        const bool invoked = QMetaObject::invokeMethod(
+            const_cast<PositionsDatabase*>(this),
+            [this, &result, p_position]() { result = reconcileClosedPosition(p_position); },
+            Qt::BlockingQueuedConnection);
+        if (!invoked)
+        {
+            WARNING << "Failed to marshal position P&L reconciliation to owner thread";
+            result.setRealizedProfitLoss(std::nullopt);
+        }
+        return result;
+    }
+
+    Position result = p_position;
+    result.setRealizedProfitLoss(std::nullopt);
+    QSqlQuery query(m_db);
+    query.prepare(PositionsDatabaseQueries::SELECT_POSITION_ORDERS);
+    query.addBindValue(p_position.getAccountID());
+    query.addBindValue(p_position.getSymbol());
+    if (!query.exec())
+    {
+        WARNING << "Failed to load position fills:" << query.lastError().text();
+        return result;
+    }
+
+    QVector<Order> orders;
+    while (query.next())
+    {
+        const auto document = QJsonDocument::fromJson(query.value(0).toString().toUtf8());
+        if (!document.isObject())
+        {
+            WARNING << "Invalid order JSON while reconciling position" << p_position.getPositionID();
+            return result;
+        }
+        auto json = document.object();
+        json["Status"] = query.value(1).toString();
+        json["FilledPrice"] = query.value(2).toDouble();
+        json["OpenedDateTime"] = query.value(3).toString();
+        json["ClosedDateTime"] = query.value(4).toString();
+        orders.append(Order(json));
+    }
+
+    const auto calculation = PositionPnL::calculateClosedPosition(p_position, orders);
+    result.setRealizedProfitLoss(calculation.grossProfit);
+    if (!calculation.grossProfit.has_value())
+    {
+        WARNING << "Realized P&L unavailable for position" << p_position.getPositionID() << ":" << calculation.reason;
+    }
+    return result;
 }
 
 bool PositionsDatabase::isOpen() const

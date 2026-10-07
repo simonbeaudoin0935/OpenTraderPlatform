@@ -52,6 +52,7 @@ OrderNS::AdvancedOptions::AdvancedOptions(const QString& str)
 Order::Order(const QJsonObject& jsonObj, bool isUpdate_) : m_isUpdate(isUpdate_)
 {
     m_accountID = jsonObj["AccountID"].toString();
+    m_fillIsSynthetic = jsonObj["SyntheticFill"].toBool(false);
 
     if (jsonObj.contains("AdvancedOptions"))
     {
@@ -134,6 +135,24 @@ Order::Order(const QJsonObject& jsonObj, bool isUpdate_) : m_isUpdate(isUpdate_)
 
             m_symbol = firstLeg["Symbol"].toString();
             m_quantity = firstLeg["QuantityOrdered"].toString();
+            const QJsonValue executedQuantity = firstLeg["ExecQuantity"];
+            if (executedQuantity.isString())
+            {
+                bool ok = false;
+                const double value = executedQuantity.toString().toDouble(&ok);
+                if (ok)
+                {
+                    m_executedQuantity = value;
+                }
+                else
+                {
+                    qWarning() << "Order: Invalid ExecQuantity for" << m_orderID;
+                }
+            }
+            else if (executedQuantity.isDouble())
+            {
+                m_executedQuantity = executedQuantity.toDouble();
+            }
 
             // Construct trade action from BuyOrSell and OpenOrClose (TS returns multiple variants).
             const QString buyOrSell = firstLeg["BuyOrSell"].toString();
@@ -258,6 +277,11 @@ Order::Order(const QJsonObject& jsonObj, bool isUpdate_) : m_isUpdate(isUpdate_)
     }
 
     // Debug: Log parsed values
+    if (jsonObj["ExecQuantity"].isDouble())
+    {
+        m_executedQuantity = jsonObj["ExecQuantity"].toDouble();
+    }
+
     qDebug() << "Order parsed values - OrderID:" << m_orderID << "Symbol:" << m_symbol << "Quantity:" << m_quantity
              << "TradeAction:" << m_tradeAction;
 

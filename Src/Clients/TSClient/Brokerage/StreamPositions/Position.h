@@ -4,6 +4,7 @@
 #include <QDateTime>
 #include <QJsonObject>
 #include <QMetaType>
+#include <optional>
 
 class Position
 {
@@ -103,6 +104,22 @@ class Position
     {
         return todaysProfitLoss;
     }
+    std::optional<double> getRealizedProfitLoss() const
+    {
+        return realizedProfitLoss;
+    }
+    void setRealizedProfitLoss(std::optional<double> p_value)
+    {
+        realizedProfitLoss = p_value;
+    }
+    void setOpenedDateTime(const QDateTime& p_value)
+    {
+        openedDateTime = p_value;
+    }
+    void setClosedDateTime(const QDateTime& p_value)
+    {
+        closedDateTime = p_value;
+    }
     QString getTotalCost() const
     {
         return totalCost;
@@ -131,33 +148,34 @@ class Position
     QString toJsonString() const;
 
   private:
-    QString accountID;                   // Required
-    QString assetType;                   // Required
-    QString averagePrice;                // Required
-    QString bid;                         // Required
-    QString ask;                         // Required
-    QString conversionRate;              // Required
-    bool deleted = false;                // Optional, defaults to false
-    QString dayTradeRequirement;         // Required
-    QDateTime expirationDate;            // Optional
-    QDateTime openedDateTime;            // Optional
-    QDateTime closedDateTime;            // Optional
-    QString initialRequirement;          // Required
-    QString maintenanceMargin;           // Required
-    QString last;                        // Required
-    QString longShort;                   // Required
-    QString markToMarketPrice;           // Required
-    QString marketValue;                 // Required
-    QString positionID;                  // Required
-    QString quantity;                    // Required
-    QString symbol;                      // Required
-    QDateTime timestamp;                 // Required
-    QString todaysProfitLoss;            // Required
-    QString totalCost;                   // Required
-    QString unrealizedProfitLoss;        // Required
-    QString unrealizedProfitLossPercent; // Required
-    QString unrealizedProfitLossQty;     // Required
-    bool isUpdate = false;               // Whether this position is an update
+    QString accountID;                        // Required
+    QString assetType;                        // Required
+    QString averagePrice;                     // Required
+    QString bid;                              // Required
+    QString ask;                              // Required
+    QString conversionRate;                   // Required
+    bool deleted = false;                     // Optional, defaults to false
+    QString dayTradeRequirement;              // Required
+    QDateTime expirationDate;                 // Optional
+    QDateTime openedDateTime;                 // Optional
+    QDateTime closedDateTime;                 // Optional
+    QString initialRequirement;               // Required
+    QString maintenanceMargin;                // Required
+    QString last;                             // Required
+    QString longShort;                        // Required
+    QString markToMarketPrice;                // Required
+    QString marketValue;                      // Required
+    QString positionID;                       // Required
+    QString quantity;                         // Required
+    QString symbol;                           // Required
+    QDateTime timestamp;                      // Required
+    QString todaysProfitLoss;                 // Required
+    std::optional<double> realizedProfitLoss; // Gross, reconciled from executed orders; absent when incomplete
+    QString totalCost;                        // Required
+    QString unrealizedProfitLoss;             // Required
+    QString unrealizedProfitLossPercent;      // Required
+    QString unrealizedProfitLossQty;          // Required
+    bool isUpdate = false;                    // Whether this position is an update
 };
 
 Q_DECLARE_METATYPE(Position)

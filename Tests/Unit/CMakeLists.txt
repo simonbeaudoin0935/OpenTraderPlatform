@@ -54,6 +54,11 @@ target_link_libraries(TradeStationOrderTestPolicyTests PRIVATE OpenTraderPlatfor
 add_test(NAME TradeStationOrderTestPolicyTests COMMAND TradeStationOrderTestPolicyTests)
 set_tests_properties(TradeStationOrderTestPolicyTests PROPERTIES LABELS "unit")
 
+add_executable(PositionPnLTests Core/PositionPnLTests.cpp)
+target_link_libraries(PositionPnLTests PRIVATE OpenTraderPlatformCommon Qt6::Test)
+add_test(NAME PositionPnLTests COMMAND PositionPnLTests)
+set_tests_properties(PositionPnLTests PROPERTIES LABELS "unit")
+
 add_executable(IndicatorZoomTests FrontEnd/IndicatorZoomTests.cpp)
 target_link_libraries(IndicatorZoomTests PRIVATE OpenTraderPlatformCommon Qt6::Test)
 target_compile_options(IndicatorZoomTests PRIVATE -Wno-float-equal)

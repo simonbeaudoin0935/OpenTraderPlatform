@@ -20,6 +20,7 @@ class PositionsReceiver : public StreamReceiver
     void stopStream(const QString& account);
     void stopStream(const char* account);
     void emitLoadedPositionsFromDatabase();
+    void reconcileClosedPositions(const QString& p_symbol);
 
     QPointer<StreamPositions> getStream() const
     {

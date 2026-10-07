@@ -280,6 +280,11 @@ bool OrdersDatabase::insertOrder(const Order& p_order, std::optional<qint64> p_l
     jsonObj["Symbol"] = p_order.getSymbol();
     jsonObj["Quantity"] = p_order.getQuantity();
     jsonObj["TradeAction"] = p_order.getTradeAction();
+    jsonObj["SyntheticFill"] = p_order.m_fillIsSynthetic;
+    if (p_order.m_executedQuantity.has_value())
+    {
+        jsonObj["ExecQuantity"] = p_order.m_executedQuantity.value();
+    }
     query.addBindValue(QString(QJsonDocument(jsonObj).toJson(QJsonDocument::Compact)));
 
     if (!query.exec())
@@ -327,6 +332,11 @@ bool OrdersDatabase::updateOrder(const Order& p_order, std::optional<qint64> p_l
     jsonObj["Symbol"] = p_order.getSymbol();
     jsonObj["Quantity"] = p_order.getQuantity();
     jsonObj["TradeAction"] = p_order.getTradeAction();
+    jsonObj["SyntheticFill"] = p_order.m_fillIsSynthetic;
+    if (p_order.m_executedQuantity.has_value())
+    {
+        jsonObj["ExecQuantity"] = p_order.m_executedQuantity.value();
+    }
     query.addBindValue(QString(QJsonDocument(jsonObj).toJson(QJsonDocument::Compact)));
 
     query.addBindValue(p_order.getOrderID());
@@ -406,7 +416,7 @@ QMap<QString, std::tuple<Order, std::optional<qint64>>> OrdersDatabase::loadAllO
             }
             jsonObj["StatusDescription"] = statusDescriptionStr;
             jsonObj["OrderType"] = orderTypeStr;
-            jsonObj["FilledPrice"] = QString::number(filledPrice, 'f', 4);
+            jsonObj["FilledPrice"] = filledPrice;
 
             if (!limitPriceVar.isNull())
             {
