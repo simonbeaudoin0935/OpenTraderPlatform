@@ -11,6 +11,7 @@ namespace PositionPnL
     {
         std::optional<double> grossProfit;
         QString reason;
+        std::optional<double> peakQuantity;
     };
 
     [[nodiscard]] Result calculateClosedPosition(const Position& p_position, const QVector<Order>& p_orders);

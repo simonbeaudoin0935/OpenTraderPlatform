@@ -5,7 +5,7 @@
 
 PositionPnL::Result PositionPnL::calculateClosedPosition(const Position& p_position, const QVector<Order>& p_orders)
 {
-    const auto unavailable = [](const QString& p_reason) -> Result { return {std::nullopt, p_reason}; };
+    const auto unavailable = [](const QString& p_reason) -> Result { return {std::nullopt, p_reason, std::nullopt}; };
     if (p_position.getAssetType() != QStringLiteral("STOCK"))
     {
         return unavailable(QStringLiteral("Fill-based P&L currently supports stock positions only"));
@@ -50,10 +50,12 @@ PositionPnL::Result PositionPnL::calculateClosedPosition(const Position& p_posit
 
     double quantity = 0.0;
     double cashFlow = 0.0;
+    double peakQuantity = 0.0;
     QDateTime openedAt;
     bool shortCycle = false;
     bool incomplete = false;
     std::optional<double> matchedProfit;
+    std::optional<double> matchedPeak;
     for (const Order& order: orders)
     {
         const auto time = executionTime(order);
@@ -128,6 +130,7 @@ PositionPnL::Result PositionPnL::calculateClosedPosition(const Position& p_posit
             openedAt = time;
             shortCycle = shortOrder;
             cashFlow = 0.0;
+            peakQuantity = 0.0;
             incomplete = false;
         }
         if (shortOrder != shortCycle)
@@ -137,6 +140,7 @@ PositionPnL::Result PositionPnL::calculateClosedPosition(const Position& p_posit
         const bool sell = action == QStringLiteral("SELL") || action == QStringLiteral("SELLSHORT");
         cashFlow += (sell ? 1.0 : -1.0) * executedQuantity * order.getFilledPrice();
         quantity += opening ? executedQuantity : -executedQuantity;
+        peakQuantity = std::max(peakQuantity, quantity);
         if (quantity < 0.0 && !qFuzzyIsNull(quantity))
         {
             incomplete = true;
@@ -155,11 +159,12 @@ PositionPnL::Result PositionPnL::calculateClosedPosition(const Position& p_posit
                 return unavailable(QStringLiteral("Incomplete or ambiguous position fill history"));
             }
             matchedProfit = cashFlow;
+            matchedPeak = peakQuantity;
         }
     }
     if (!matchedProfit.has_value())
     {
         return unavailable(QStringLiteral("Awaiting complete entry and exit fills for this position"));
     }
-    return {matchedProfit, {}};
+    return {matchedProfit, {}, matchedPeak};
 }

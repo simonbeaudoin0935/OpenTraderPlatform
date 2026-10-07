@@ -59,6 +59,14 @@ target_link_libraries(PositionPnLTests PRIVATE OpenTraderPlatformCommon Qt6::Tes
 add_test(NAME PositionPnLTests COMMAND PositionPnLTests)
 set_tests_properties(PositionPnLTests PROPERTIES LABELS "unit")
 
+add_executable(PositionWidgetTests FrontEnd/PositionWidgetTests.cpp)
+target_link_libraries(PositionWidgetTests PRIVATE OpenTraderPlatformCommon Qt6::Test)
+add_test(NAME PositionWidgetTests COMMAND PositionWidgetTests)
+set_tests_properties(PositionWidgetTests PROPERTIES
+    ENVIRONMENT "QT_QPA_PLATFORM=offscreen"
+    LABELS "unit"
+)
+
 add_executable(IndicatorZoomTests FrontEnd/IndicatorZoomTests.cpp)
 target_link_libraries(IndicatorZoomTests PRIVATE OpenTraderPlatformCommon Qt6::Test)
 target_compile_options(IndicatorZoomTests PRIVATE -Wno-float-equal)

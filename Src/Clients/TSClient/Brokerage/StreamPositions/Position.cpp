@@ -50,6 +50,10 @@ Position::Position(const QJsonObject& jsonObj, bool isUpdate_) : isUpdate(isUpda
     {
         realizedProfitLoss = jsonObj["RealizedProfitLoss"].toDouble();
     }
+    if (jsonObj["PeakQuantity"].isDouble())
+    {
+        peakQuantity = jsonObj["PeakQuantity"].toDouble();
+    }
     totalCost = jsonObj["TotalCost"].toString();
     unrealizedProfitLoss = jsonObj["UnrealizedProfitLoss"].toString();
     unrealizedProfitLossPercent = jsonObj["UnrealizedProfitLossPercent"].toString();
@@ -167,6 +171,10 @@ QString Position::toJsonString() const
     if (realizedProfitLoss.has_value())
     {
         jsonObj["RealizedProfitLoss"] = realizedProfitLoss.value();
+    }
+    if (peakQuantity.has_value())
+    {
+        jsonObj["PeakQuantity"] = peakQuantity.value();
     }
     jsonObj["TotalCost"] = totalCost;
     jsonObj["UnrealizedProfitLoss"] = unrealizedProfitLoss;

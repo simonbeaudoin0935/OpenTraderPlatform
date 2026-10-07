@@ -372,12 +372,14 @@ Position PositionsDatabase::reconcileClosedPosition(const Position& p_position) 
         {
             WARNING << "Failed to marshal position P&L reconciliation to owner thread";
             result.setRealizedProfitLoss(std::nullopt);
+            result.setPeakQuantity(std::nullopt);
         }
         return result;
     }
 
     Position result = p_position;
     result.setRealizedProfitLoss(std::nullopt);
+    result.setPeakQuantity(std::nullopt);
     QSqlQuery query(m_db);
     query.prepare(PositionsDatabaseQueries::SELECT_POSITION_ORDERS);
     query.addBindValue(p_position.getAccountID());
@@ -407,6 +409,7 @@ Position PositionsDatabase::reconcileClosedPosition(const Position& p_position) 
 
     const auto calculation = PositionPnL::calculateClosedPosition(p_position, orders);
     result.setRealizedProfitLoss(calculation.grossProfit);
+    result.setPeakQuantity(calculation.peakQuantity);
     if (!calculation.grossProfit.has_value())
     {
         WARNING << "Realized P&L unavailable for position" << p_position.getPositionID() << ":" << calculation.reason;

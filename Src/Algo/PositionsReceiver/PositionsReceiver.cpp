@@ -316,8 +316,12 @@ void PositionsReceiver::reconcileClosedPositions(const QString& p_symbol)
         Position reconciled = m_database->reconcileClosedPosition(previous);
         const auto previousProfit = previous.getRealizedProfitLoss();
         const auto profit = reconciled.getRealizedProfitLoss();
+        const auto previousPeak = previous.getPeakQuantity();
+        const auto peak = reconciled.getPeakQuantity();
         if (previousProfit.has_value() == profit.has_value() &&
-            (!profit.has_value() || qFuzzyCompare(1.0 + previousProfit.value(), 1.0 + profit.value())))
+            (!profit.has_value() || qFuzzyCompare(1.0 + previousProfit.value(), 1.0 + profit.value())) &&
+            previousPeak.has_value() == peak.has_value() &&
+            (!peak.has_value() || qFuzzyCompare(1.0 + previousPeak.value(), 1.0 + peak.value())))
         {
             continue;
         }

@@ -61,6 +61,7 @@ class PositionPnLTests : public QObject
         QVERIFY2(result.grossProfit.has_value(), qPrintable(result.reason));
         QVERIFY(std::abs(result.grossProfit.value() - 371.33030008) < 0.000001);
         QCOMPARE(QString::number(result.grossProfit.value(), 'f', 2), QString("371.33"));
+        QCOMPARE(result.peakQuantity.value(), 1400.0);
         std::reverse(orders.begin(), orders.end());
         QCOMPARE(PositionPnL::calculateClosedPosition(position(), orders).grossProfit.value(),
                  result.grossProfit.value());
@@ -90,6 +91,7 @@ class PositionPnLTests : public QObject
                                     order("3", "Buy", 50, 11.0, "2026-10-07T07:20:00-04:00"),
                                     order("4", "Sell", 100, 13.0, "2026-10-07T07:22:48-04:00")};
         QCOMPARE(PositionPnL::calculateClosedPosition(position(), orders).grossProfit.value(), 350.0);
+        QCOMPARE(PositionPnL::calculateClosedPosition(position(), orders).peakQuantity.value(), 100.0);
     }
 
     void handlesShortsAndOvernightPositions()
@@ -101,6 +103,23 @@ class PositionPnLTests : public QObject
                      orders)
                      .grossProfit.value(),
                  200.0);
+        QCOMPARE(PositionPnL::calculateClosedPosition(
+                     position("2026-10-06T15:00:01-04:00", "2026-10-07T07:22:49-04:00", "Short"),
+                     orders)
+                     .peakQuantity.value(),
+                 100.0);
+    }
+
+    void tracksNewPeakAfterScaleOutWithoutCountingTotalPurchases()
+    {
+        const QVector<Order> orders{order("1", "Buy", 100, 10.0, "2026-10-07T07:18:45-04:00"),
+                                    order("2", "Sell", 50, 12.0, "2026-10-07T07:19:00-04:00"),
+                                    order("3", "Buy", 200, 11.0, "2026-10-07T07:20:00-04:00"),
+                                    order("4", "Sell", 250, 13.0, "2026-10-07T07:22:48-04:00")};
+        const auto result = PositionPnL::calculateClosedPosition(position(), orders);
+        QVERIFY(result.peakQuantity.has_value());
+        QCOMPARE(result.peakQuantity.value(), 250.0);
+        QCOMPARE(result.grossProfit.value(), 650.0);
     }
 
     void usesExecutedRatherThanOrderedQuantity()
@@ -109,6 +128,7 @@ class PositionPnLTests : public QObject
         partial.m_executedQuantity = 100;
         const Order exit = order("2", "Sell", 100, 4.0, "2026-10-07T07:22:48-04:00");
         QCOMPARE(PositionPnL::calculateClosedPosition(position(), {partial, exit}).grossProfit.value(), 100.0);
+        QCOMPARE(PositionPnL::calculateClosedPosition(position(), {partial, exit}).peakQuantity.value(), 100.0);
         partial.m_executedQuantity.reset();
         QVERIFY(!PositionPnL::calculateClosedPosition(position(), {partial, exit}).grossProfit.has_value());
     }
@@ -118,6 +138,7 @@ class PositionPnLTests : public QObject
         const Order buy = order("1", "Buy", 1400, 3.0, "2026-10-07T07:18:45-04:00");
         const Order partialExit = order("2", "Sell", 1000, 4.0, "2026-10-07T07:22:48-04:00");
         QVERIFY(!PositionPnL::calculateClosedPosition(position(), {buy, partialExit}).grossProfit.has_value());
+        QVERIFY(!PositionPnL::calculateClosedPosition(position(), {buy, partialExit}).peakQuantity.has_value());
         QVERIFY(!PositionPnL::calculateClosedPosition(position(), {partialExit}).grossProfit.has_value());
         const Order wrongEntry = order("1", "Buy", 100, 3.0, "2026-10-07T07:18:45-04:00");
         QVERIFY(!PositionPnL::calculateClosedPosition(position(), {wrongEntry, partialExit}).grossProfit.has_value());
@@ -128,10 +149,14 @@ class PositionPnLTests : public QObject
         Position value = position();
         QVERIFY(!value.getRealizedProfitLoss().has_value());
         value.setRealizedProfitLoss(371.33030008);
+        value.setPeakQuantity(1400);
         Position restored(QJsonDocument::fromJson(value.toJsonString().toUtf8()).object());
         QCOMPARE(restored.getRealizedProfitLoss().value(), 371.33030008);
+        QCOMPARE(restored.getPeakQuantity().value(), 1400.0);
         QCOMPARE(restored.getTodaysProfitLoss(), QString("99.24"));
         restored.setRealizedProfitLoss(std::nullopt);
+        restored.setPeakQuantity(std::nullopt);
+        QVERIFY(!QJsonDocument::fromJson(restored.toJsonString().toUtf8()).object().contains("PeakQuantity"));
         QVERIFY(!QJsonDocument::fromJson(restored.toJsonString().toUtf8()).object().contains("RealizedProfitLoss"));
     }
 

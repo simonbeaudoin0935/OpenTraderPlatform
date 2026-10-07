@@ -214,7 +214,7 @@ void PositionWidget::setupUI()
     // Setup model columns (Position ID at END like OrderWidget)
     QStringList headers;
     headers << "Symbol" << "Quantity" << "Avg Price" << "Last" << "Unrealized P/L" << "Realized P/L (Gross)"
-            << "Market Value" << "Position ID";
+            << "Market Value" << "Peak Shares" << "Position ID";
     model->setHorizontalHeaderLabels(headers);
 
     // Configure table view
@@ -246,7 +246,8 @@ void PositionWidget::setupUI()
     tableView->setColumnWidth(4, 90); // Unrealized P/L
     tableView->setColumnWidth(5, 90); // Realized P/L
     tableView->setColumnWidth(6, 90); // Market Value
-    tableView->setColumnWidth(7, 90); // Position ID
+    tableView->setColumnWidth(7, 90); // Peak Shares
+    tableView->setColumnWidth(8, 90); // Position ID
 
     // Add widgets to layout
     mainLayout->addWidget(m_headerWidget);
@@ -530,6 +531,16 @@ QList<QStandardItem*> PositionWidget::createRowItems(const Position& position)
     marketValueItem->setTextAlignment(Qt::AlignCenter);
     items << marketValueItem;
 
+    auto peakItem = new QStandardItem();
+    peakItem->setTextAlignment(Qt::AlignCenter);
+    if (!isOpenPosition(position))
+    {
+        const auto peak = position.getPeakQuantity();
+        peakItem->setText(peak.has_value() ? QString::number(peak.value(), 'g', 15) : QStringLiteral("Pending"));
+        peakItem->setToolTip("Largest number of shares held at once during this position, reconstructed from fills.");
+    }
+    items << peakItem;
+
     // Position ID (at end, like OrderWidget)
     auto positionIDItem = new QStandardItem(position.getPositionID());
     positionIDItem->setTextAlignment(Qt::AlignCenter);
@@ -590,7 +601,7 @@ void PositionWidget::onCustomContextMenuRequested(const QPoint& p_pos)
     }
 
     QStandardItem* const quantityItem = model->item(index.row(), 1);
-    QStandardItem* const positionIDItem = model->item(index.row(), 7);
+    QStandardItem* const positionIDItem = model->item(index.row(), 8);
     if (quantityItem == nullptr || positionIDItem == nullptr)
     {
         return;

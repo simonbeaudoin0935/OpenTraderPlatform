@@ -285,6 +285,12 @@ cannot be reconciled reliably.
 Synthetic fill estimates used to reconcile order status are explicitly marked
 and excluded from realized accounting until replaced by broker execution data.
 
+The positions table's `Peak Shares` column reports the largest simultaneous
+share count in a closed position's lifecycle (absolute size for shorts), not
+total shares purchased. It is reconstructed alongside realized P/L, persisted
+in position JSON, and recalculated for historical/review positions. Open rows
+leave this column blank; incomplete closed fill histories show `Pending`.
+
 **Key Members**:
 ```cpp
 QMap<QString, SymbolContext*> m_symbolContexts;            // Symbol → context (actor)

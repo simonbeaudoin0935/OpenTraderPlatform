@@ -112,6 +112,14 @@ class Position
     {
         realizedProfitLoss = p_value;
     }
+    std::optional<double> getPeakQuantity() const
+    {
+        return peakQuantity;
+    }
+    void setPeakQuantity(std::optional<double> p_value)
+    {
+        peakQuantity = p_value;
+    }
     void setOpenedDateTime(const QDateTime& p_value)
     {
         openedDateTime = p_value;
@@ -171,11 +179,12 @@ class Position
     QDateTime timestamp;                      // Required
     QString todaysProfitLoss;                 // Required
     std::optional<double> realizedProfitLoss; // Gross, reconciled from executed orders; absent when incomplete
-    QString totalCost;                        // Required
-    QString unrealizedProfitLoss;             // Required
-    QString unrealizedProfitLossPercent;      // Required
-    QString unrealizedProfitLossQty;          // Required
-    bool isUpdate = false;                    // Whether this position is an update
+    std::optional<double> peakQuantity;
+    QString totalCost;                   // Required
+    QString unrealizedProfitLoss;        // Required
+    QString unrealizedProfitLossPercent; // Required
+    QString unrealizedProfitLossQty;     // Required
+    bool isUpdate = false;               // Whether this position is an update
 };
 
 Q_DECLARE_METATYPE(Position)
