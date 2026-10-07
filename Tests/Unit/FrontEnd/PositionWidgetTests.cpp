@@ -2,6 +2,7 @@
 #include <QTableView>
 #include <QStandardItemModel>
 #include <QSplitter>
+#include <QHeaderView>
 #include "FrontEnd/GUI/Widgets/PositionWidget.h"
 #include "FrontEnd/GUI/Widgets/OrderWidget.h"
 #include "Misc/CONSTANTS.h"
@@ -11,6 +12,27 @@ class PositionWidgetTests : public QObject
     Q_OBJECT
 
   private slots:
+    void compactProfitHeadersExplainTheirMeaning()
+    {
+        PositionWidget widget;
+        auto* table = widget.findChild<QTableView*>();
+        QVERIFY(table);
+        auto* model = table->model();
+        QCOMPARE(model->headerData(4, Qt::Horizontal).toString(), QString("U. P&L"));
+        QCOMPARE(model->headerData(5, Qt::Horizontal).toString(), QString("R. P&L"));
+        QVERIFY(model->headerData(4, Qt::Horizontal, Qt::ToolTipRole).toString().contains("Unrealized"));
+        const auto realizedTooltip = model->headerData(5, Qt::Horizontal, Qt::ToolTipRole).toString();
+        QVERIFY(realizedTooltip.contains("Realized"));
+        QVERIFY(realizedTooltip.contains("gross"));
+        QVERIFY(realizedTooltip.contains("before fees"));
+        const QFontMetrics metrics(table->horizontalHeader()->font());
+        for (int column: {4, 5})
+        {
+            QVERIFY(metrics.horizontalAdvance(model->headerData(column, Qt::Horizontal).toString()) <
+                    table->columnWidth(column));
+        }
+    }
+
     void splitterCanResizePositionsAgainstOrders()
     {
         QSplitter splitter(Qt::Horizontal);

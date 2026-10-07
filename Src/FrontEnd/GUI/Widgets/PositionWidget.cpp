@@ -213,9 +213,15 @@ void PositionWidget::setupUI()
 
     // Setup model columns (Position ID at END like OrderWidget)
     QStringList headers;
-    headers << "Symbol" << "Quantity" << "Avg Price" << "Last" << "Unrealized P/L" << "Realized P/L (Gross)"
-            << "Market Value" << "Peak Shares" << "Position ID";
+    headers << "Symbol" << "Quantity" << "Avg Price" << "Last" << "U. P&L" << "R. P&L" << "Market Value"
+            << "Peak Shares" << "Position ID";
     model->setHorizontalHeaderLabels(headers);
+    model->setHeaderData(4, Qt::Horizontal, "Unrealized profit and loss on the open position.", Qt::ToolTipRole);
+    model->setHeaderData(
+        5,
+        Qt::Horizontal,
+        "Realized profit and loss on the closed position: gross profit from executed orders, before fees.",
+        Qt::ToolTipRole);
 
     // Configure table view
     tableView->setModel(model);

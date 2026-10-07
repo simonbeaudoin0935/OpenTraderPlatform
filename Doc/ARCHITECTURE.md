@@ -292,6 +292,8 @@ in position JSON, and recalculated for historical/review positions. Open rows
 leave this column blank; incomplete closed fill histories show `Pending`.
 The Positions and Orders panels both support horizontal splitter resizing;
 their tables expose horizontal scrollbars when narrower than their columns.
+Compact `U. P&L` and `R. P&L` headers have tooltips explaining unrealized
+open-position P/L and gross realized closed-position P/L before fees.
 
 **Key Members**:
 ```cpp
