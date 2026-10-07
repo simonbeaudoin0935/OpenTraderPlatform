@@ -14,6 +14,7 @@ namespace google::protobuf
 namespace OpenTraderPlatform::StrategySDK
 {
     inline constexpr std::size_t kFramePrefixSize = 4;
+    inline constexpr std::uint32_t kMaxFramePayloadSize = 16U * 1024U * 1024U;
 
     [[nodiscard]] constexpr std::array<std::uint8_t, kFramePrefixSize> encodeFrameSize(std::uint32_t p_size)
     {

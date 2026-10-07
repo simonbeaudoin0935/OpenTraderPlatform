@@ -4,6 +4,7 @@
 #include <cerrno>
 #include <cstring>
 #include <limits>
+#include <iostream>
 #include <utility>
 
 #include <poll.h>
@@ -137,6 +138,11 @@ namespace OpenTraderPlatform::StrategySDK
         }
 
         const std::uint32_t payloadSize = decodeFrameSize(framePrefix);
+        if (payloadSize > kMaxFramePayloadSize)
+        {
+            std::cerr << "[UnixSocketConnection] Frame exceeds the 16 MiB payload limit." << std::endl;
+            return false;
+        }
         p_payload->assign(payloadSize, std::uint8_t{0});
         if (payloadSize == 0)
         {

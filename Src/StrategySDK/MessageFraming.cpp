@@ -10,7 +10,7 @@ namespace OpenTraderPlatform::StrategySDK
     std::vector<std::uint8_t> serializeFramedMessage(const google::protobuf::MessageLite& p_message)
     {
         const std::size_t payloadSize = p_message.ByteSizeLong();
-        if (payloadSize > std::numeric_limits<std::uint32_t>::max())
+        if (payloadSize > kMaxFramePayloadSize)
         {
             return {};
         }
@@ -34,7 +34,7 @@ namespace OpenTraderPlatform::StrategySDK
             return false;
         }
 
-        if (p_payload.size() > static_cast<std::size_t>(std::numeric_limits<int>::max()))
+        if (p_payload.size() > kMaxFramePayloadSize)
         {
             return false;
         }

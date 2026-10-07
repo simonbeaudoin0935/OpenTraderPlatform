@@ -89,6 +89,8 @@ class OAuthSecurityTests : public QObject
     void initTestCase()
     {
         QVERIFY(m_configDir.isValid());
+        QCoreApplication::setOrganizationName("OpenTraderPlatform");
+        QCoreApplication::setApplicationName("OAuthSecurityTests");
         QSettings::setPath(QSettings::IniFormat, QSettings::UserScope, m_configDir.path());
         QSettings::setPath(QSettings::NativeFormat, QSettings::UserScope, m_configDir.path());
         if (qEnvironmentVariableIsSet("OTP_TEST_YUBIKEY"))

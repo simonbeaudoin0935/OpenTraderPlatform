@@ -21,6 +21,8 @@ class StartupRestoreTests : public QObject
         const QString root = directory.path();
         QVERIFY(QDir().mkpath(root + "/bin"));
         QVERIFY(QDir().mkpath(root + "/config"));
+        QCoreApplication::setOrganizationName("OpenTraderPlatform");
+        QCoreApplication::setApplicationName("StartupRestoreTests");
         const QString readyPath = root + "/unlock-ready";
         const QString releasePath = root + "/unlock-release";
         QFile helper(root + "/bin/ykman");
@@ -38,7 +40,8 @@ class StartupRestoreTests : public QObject
         QSettings settings(QSettings::NativeFormat, QSettings::UserScope, QString(), "OpenTraderPlatform");
         settings.setValue(CredentialStorageConstants::SETTINGS_KEY, "YubiKey");
         settings.sync();
-        QCOMPARE(settings.status(), QSettings::NoError);
+        QSettings settingsReadBack(settings.fileName(), QSettings::IniFormat);
+        QCOMPARE(settingsReadBack.value(CredentialStorageConstants::SETTINGS_KEY).toString(), QString("YubiKey"));
         QVERIFY(QDir().mkpath(root + "/state/OpenTraderPlatform"));
         QSettings appState(root + "/state/OpenTraderPlatform/AppState.ini", QSettings::IniFormat);
         appState.setValue("Replay/Active", true);

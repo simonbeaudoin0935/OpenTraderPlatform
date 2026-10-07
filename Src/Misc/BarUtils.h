@@ -173,7 +173,7 @@ namespace BarUtils
             return 0;
 
         ASSUME_GTE(p_time, TradingHours::TIME_FIRST_CANDLE_EARLY_PRE_MARKET_SESSION);
-        ASSUME_LTE(p_time, TradingHours::TIME_LAST_CANDLE_AFTER_MARKET_SESSION);
+        ASSUME_LT(p_time, TradingHours::TIME_LAST_CANDLE_AFTER_MARKET_SESSION.addSecs(60));
 
         const int secondsFromOpen =
             (p_time.hour() - TradingHours::TIME_FIRST_CANDLE_EARLY_PRE_MARKET_SESSION.hour()) * 3600 +
