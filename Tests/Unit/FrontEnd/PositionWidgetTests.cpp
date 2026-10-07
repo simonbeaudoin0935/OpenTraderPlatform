@@ -1,7 +1,9 @@
 #include <QTest>
 #include <QTableView>
 #include <QStandardItemModel>
+#include <QSplitter>
 #include "FrontEnd/GUI/Widgets/PositionWidget.h"
+#include "FrontEnd/GUI/Widgets/OrderWidget.h"
 #include "Misc/CONSTANTS.h"
 
 class PositionWidgetTests : public QObject
@@ -9,6 +11,33 @@ class PositionWidgetTests : public QObject
     Q_OBJECT
 
   private slots:
+    void splitterCanResizePositionsAgainstOrders()
+    {
+        QSplitter splitter(Qt::Horizontal);
+        splitter.setChildrenCollapsible(false);
+        auto* positions = new PositionWidget(&splitter);
+        auto* orders = new OrderWidget(&splitter);
+        splitter.addWidget(positions);
+        splitter.addWidget(orders);
+        splitter.resize(1400, 300);
+        splitter.show();
+        QVERIFY(QTest::qWaitForWindowExposed(&splitter));
+        splitter.setSizes({700, 700});
+        QCoreApplication::processEvents();
+
+        const int initialWidth = positions->width();
+        auto* handle = splitter.handle(1);
+        const QPoint start = handle->rect().center();
+        QTest::mousePress(handle, Qt::LeftButton, Qt::NoModifier, start);
+        QTest::mouseMove(handle, start - QPoint(180, 0));
+        QTest::mouseRelease(handle, Qt::LeftButton, Qt::NoModifier, start - QPoint(180, 0));
+        QCoreApplication::processEvents();
+        QVERIFY(positions->width() < initialWidth - 100);
+        QVERIFY(positions->width() >= positions->minimumWidth());
+        QVERIFY(positions->maximumWidth() > initialWidth);
+        QCOMPARE(positions->findChild<QTableView*>()->horizontalScrollBarPolicy(), Qt::ScrollBarAsNeeded);
+    }
+
     void displaysClosedPeakAndUpdatesPendingRow()
     {
         PositionWidget widget;

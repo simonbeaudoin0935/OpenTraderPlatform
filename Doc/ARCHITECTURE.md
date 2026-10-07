@@ -290,6 +290,8 @@ share count in a closed position's lifecycle (absolute size for shorts), not
 total shares purchased. It is reconstructed alongside realized P/L, persisted
 in position JSON, and recalculated for historical/review positions. Open rows
 leave this column blank; incomplete closed fill histories show `Pending`.
+The Positions and Orders panels both support horizontal splitter resizing;
+their tables expose horizontal scrollbars when narrower than their columns.
 
 **Key Members**:
 ```cpp

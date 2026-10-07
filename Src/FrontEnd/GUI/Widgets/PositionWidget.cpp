@@ -224,7 +224,7 @@ void PositionWidget::setupUI()
     tableView->setSelectionBehavior(QAbstractItemView::SelectRows);
     tableView->setEditTriggers(QAbstractItemView::NoEditTriggers);
     tableView->setAlternatingRowColors(true);
-    tableView->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
+    tableView->setHorizontalScrollBarPolicy(Qt::ScrollBarAsNeeded);
     tableView->setContextMenuPolicy(Qt::CustomContextMenu);
 
     // Connect click signal
@@ -253,13 +253,10 @@ void PositionWidget::setupUI()
     mainLayout->addWidget(m_headerWidget);
     mainLayout->addWidget(tableView);
 
-    // Set fixed width based on total column widths
-    int totalWidth = 0;
-    for (int i = 0; i < headers.size(); ++i)
-    {
-        totalWidth += tableView->columnWidth(i);
-    }
-    setFixedWidth(totalWidth);
+    QSizePolicy sizingPolicy(QSizePolicy::Preferred, QSizePolicy::Expanding);
+    sizingPolicy.setHorizontalStretch(1);
+    setSizePolicy(sizingPolicy);
+    setMinimumWidth(220);
 }
 
 void PositionWidget::setupStyles()
