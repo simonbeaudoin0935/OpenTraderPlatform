@@ -155,6 +155,10 @@ The chart supports seamless switching between multiple timeframes:
 - `8` = 1-week (future)
 - `9` = 1-month (future)
 
+There is no 10-second timeframe keyboard shortcut. Saved unmodified legacy
+number-key layouts are migrated to the mapping above; customized bindings are
+preserved. The same default number keys apply to detached charts.
+
 **Auto-Timeframe Switching**: When the "Auto" checkbox is enabled, the chart automatically switches timeframes based on the visible time range:
 - Zooming in (less time visible) → smaller timeframes
 - Zooming out (more time visible) → larger timeframes

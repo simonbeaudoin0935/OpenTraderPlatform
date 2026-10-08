@@ -197,7 +197,6 @@ class GUIFrontend : public QObject
     QShortcut* m_newChartWindowShortcut;           // Open new chart window shortcut
 
     // Timescale shortcuts
-    QShortcut* m_timeFrame10sShortcut;
     QShortcut* m_timeFrame1mShortcut;
     QShortcut* m_timeFrame5mShortcut;
     QShortcut* m_timeFrame15mShortcut;

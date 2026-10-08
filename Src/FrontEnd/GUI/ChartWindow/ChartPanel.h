@@ -106,7 +106,6 @@ class ChartPanel : public QWidget
 
     // Shortcuts (scoped to this panel's parent window via context)
     QShortcut* m_focusShortcut = nullptr;
-    QShortcut* m_tf10sShortcut = nullptr;
     QShortcut* m_tf1mShortcut = nullptr;
     QShortcut* m_tf5mShortcut = nullptr;
     QShortcut* m_tf15mShortcut = nullptr;

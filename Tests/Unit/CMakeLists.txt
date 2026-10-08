@@ -67,6 +67,11 @@ set_tests_properties(PositionWidgetTests PROPERTIES
     LABELS "unit"
 )
 
+add_executable(ShortcutSettingsTests FrontEnd/ShortcutSettingsTests.cpp)
+target_link_libraries(ShortcutSettingsTests PRIVATE OpenTraderPlatformCommon Qt6::Test)
+add_test(NAME ShortcutSettingsTests COMMAND ShortcutSettingsTests)
+set_tests_properties(ShortcutSettingsTests PROPERTIES LABELS "unit")
+
 add_executable(IndicatorZoomTests FrontEnd/IndicatorZoomTests.cpp)
 target_link_libraries(IndicatorZoomTests PRIVATE OpenTraderPlatformCommon Qt6::Test)
 target_compile_options(IndicatorZoomTests PRIVATE -Wno-float-equal)

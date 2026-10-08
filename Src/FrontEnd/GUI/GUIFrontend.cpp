@@ -365,7 +365,6 @@ GUIFrontend::GUIFrontend(MainAlgo* p_mainAlgo, QObject* parent) : QObject(parent
         return shortcut;
     };
 
-    m_timeFrame10sShortcut = createTimeFrameShortcut(ShortcutSettings::TimeFrame10s, TimeFrame::TEN_SECONDS);
     m_timeFrame1mShortcut = createTimeFrameShortcut(ShortcutSettings::TimeFrame1m, TimeFrame::ONE_MINUTE);
     m_timeFrame5mShortcut = createTimeFrameShortcut(ShortcutSettings::TimeFrame5m, TimeFrame::FIVE_MINUTES);
     m_timeFrame15mShortcut = createTimeFrameShortcut(ShortcutSettings::TimeFrame15m, TimeFrame::FIFTEEN_MINUTES);
@@ -4310,8 +4309,6 @@ void GUIFrontend::onShortcutChanged(ShortcutSettings::ShortcutId p_id, const QKe
         break;
 
     case ShortcutSettings::TimeFrame10s:
-        Q_CHECK_PTR(m_timeFrame10sShortcut);
-        m_timeFrame10sShortcut->setKey(p_newSequence);
         break;
 
     case ShortcutSettings::TimeFrame1m:
@@ -4818,10 +4815,6 @@ void GUIFrontend::updateTenSecondTimeFrameAvailability()
 {
     const bool allowTenSecond = MainApp::isInReplayMode();
     ui->priceChart->toolbar()->setTenSecondTimeFrameEnabled(allowTenSecond);
-    if (m_timeFrame10sShortcut != nullptr)
-    {
-        m_timeFrame10sShortcut->setEnabled(allowTenSecond);
-    }
 }
 
 QString GUIFrontend::formatAccountInfo(const Account& account) const
