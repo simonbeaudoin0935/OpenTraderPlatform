@@ -80,6 +80,7 @@ class PositionsDatabase : public QObject
      * @return Map of position ID to Position object
      */
     QMap<QString, Position> loadAllPositions() const;
+    [[nodiscard]] Position reconcileClosedPosition(const Position& p_position) const;
 
     /**
      * @brief Check if the database is open

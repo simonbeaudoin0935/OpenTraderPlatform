@@ -130,7 +130,6 @@ void ChartPanel::setupShortcuts()
         return sc;
     };
 
-    m_tf10sShortcut = makeTfShortcut(Qt::Key_0, TimeFrame::TEN_SECONDS);
     m_tf1mShortcut = makeTfShortcut(Qt::Key_1, TimeFrame::ONE_MINUTE);
     m_tf5mShortcut = makeTfShortcut(Qt::Key_2, TimeFrame::FIVE_MINUTES);
     m_tf15mShortcut = makeTfShortcut(Qt::Key_3, TimeFrame::FIFTEEN_MINUTES);

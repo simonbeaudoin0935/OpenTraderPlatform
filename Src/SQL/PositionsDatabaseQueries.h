@@ -57,6 +57,9 @@ namespace PositionsDatabaseQueries
     const QString SELECT_ALL_POSITIONS =
         "SELECT position_id, opened_datetime, closed_datetime, json_data FROM positions";
 
+    const QString SELECT_POSITION_ORDERS = "SELECT json_data, status, filled_price, opened_datetime, closed_datetime "
+                                           "FROM orders WHERE account_id = ? AND symbol = ?";
+
     const QString SELECT_POSITION_COUNT = "SELECT COUNT(*) FROM positions";
 
     const QString DELETE_ALL_POSITIONS = "DELETE FROM positions";

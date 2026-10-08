@@ -101,6 +101,7 @@ class ShortcutSettings : public QObject
      * @return List of all shortcut IDs
      */
     QList<ShortcutId> getAllShortcutIds() const;
+    static void migrateLegacyTimeFrameShortcuts(QSettings& p_settings);
 
   signals:
     /**

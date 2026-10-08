@@ -343,6 +343,12 @@ namespace
             {"unrealizedProfitLossPercent", p_position.getUnrealizedProfitLossPercent()},
             {"unrealizedProfitLossQty", p_position.getUnrealizedProfitLossQty()},
             {"todaysProfitLoss", p_position.getTodaysProfitLoss()},
+            {"grossRealizedProfitLoss",
+             p_position.getRealizedProfitLoss().has_value() ? QJsonValue(p_position.getRealizedProfitLoss().value())
+                                                            : QJsonValue(QJsonValue::Null)},
+            {"peakQuantity",
+             p_position.getPeakQuantity().has_value() ? QJsonValue(p_position.getPeakQuantity().value())
+                                                      : QJsonValue(QJsonValue::Null)},
             {"longShort", p_position.getLongShort()},
             {"assetType", p_position.getAssetType()},
             {"conversionRate", p_position.getConversionRate()},

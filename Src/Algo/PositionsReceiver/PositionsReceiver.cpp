@@ -31,6 +31,7 @@ namespace
         jsonObject["UnrealizedProfitLossPercent"] = QStringLiteral("0");
         jsonObject["UnrealizedProfitLossQty"] = QStringLiteral("0");
         jsonObject["Timestamp"] = p_timestamp.toString(Qt::ISODate);
+        jsonObject["ClosedDateTime"] = p_timestamp.toString(Qt::ISODate);
         return Position(jsonObject, true);
     }
 } // namespace
@@ -56,6 +57,13 @@ PositionsReceiver::PositionsReceiver(const QString& account, QObject* parent)
     // Load existing positions from database
     m_loadedPositionsFromDatabase = m_database->loadAllPositions();
     m_latestPositionsById = m_loadedPositionsFromDatabase;
+    for (const Position& position: m_loadedPositionsFromDatabase)
+    {
+        if (position.getAccountID() == m_account && position.getClosedDateTime().isValid())
+        {
+            m_database->updatePosition(position, position.getClosedDateTime());
+        }
+    }
     INFO << "Loaded" << m_loadedPositionsFromDatabase.size() << "positions from database";
 
     createPositionsStream();
@@ -134,7 +142,15 @@ void PositionsReceiver::onReceivedNewPosition(Position position)
         << "New position for account (" << m_account << ") : " << position.toJsonString();
 
     QString positionID = position.getPositionID();
-    QDateTime currentTime = QDateTime::currentDateTime();
+    QDateTime currentTime = MainApp::getCurrentAppTime();
+    if (!position.getOpenedDateTime().isValid())
+    {
+        const auto existing = m_latestPositionsById.constFind(positionID);
+        const QDateTime openedAt = existing != m_latestPositionsById.cend() && existing->getOpenedDateTime().isValid()
+                                       ? existing->getOpenedDateTime()
+                                       : (position.getTimestamp().isValid() ? position.getTimestamp() : currentTime);
+        position.setOpenedDateTime(openedAt);
+    }
     if (!m_receivedEndSnapshot)
     {
         m_snapshotPositionIds.insert(positionID);
@@ -144,6 +160,11 @@ void PositionsReceiver::onReceivedNewPosition(Position position)
     double avgPrice = position.getAveragePrice().toDouble();
     constexpr double EPSILON = 1e-9;
     bool quantityIsZero = (std::abs(quantity) < EPSILON);
+    if (quantityIsZero)
+    {
+        position.setClosedDateTime(currentTime);
+        position = m_database->reconcileClosedPosition(position);
+    }
 
     // Only write to the database on structural changes (open / add / reduce / close).
     // Pure mark-to-market updates (same qty + same avg price) are skipped.
@@ -160,7 +181,7 @@ void PositionsReceiver::onReceivedNewPosition(Position position)
     if (!positionExistsInDB)
     {
         // New position — always insert
-        QDateTime openedTime = currentTime;
+        QDateTime openedTime = position.getOpenedDateTime();
         m_positionOpenedTimes[positionID] = openedTime;
         m_database->insertPosition(position, openedTime);
         m_lastKnownStructure[positionID] = {quantity, avgPrice};
@@ -213,6 +234,7 @@ void PositionsReceiver::onPositionDeleted(QString positionID)
 
     if (closedPosition.has_value())
     {
+        closedPosition = m_database->reconcileClosedPosition(closedPosition.value());
         if (m_database->positionExists(positionID))
         {
             m_database->updatePosition(closedPosition.value(), closedAt);
@@ -257,6 +279,7 @@ void PositionsReceiver::onEndSnapshotReceived()
         {
             continue;
         }
+        closedPosition = m_database->reconcileClosedPosition(closedPosition.value());
 
         if (m_database->positionExists(positionID))
         {
@@ -278,4 +301,35 @@ void PositionsReceiver::onEndSnapshotReceived()
     }
 
     m_snapshotPositionIds.clear();
+}
+
+void PositionsReceiver::reconcileClosedPositions(const QString& p_symbol)
+{
+    for (auto it = m_latestPositionsById.begin(); it != m_latestPositionsById.end(); ++it)
+    {
+        const Position& previous = it.value();
+        if (previous.getAccountID() != m_account || previous.getSymbol() != p_symbol ||
+            !previous.getClosedDateTime().isValid())
+        {
+            continue;
+        }
+        Position reconciled = m_database->reconcileClosedPosition(previous);
+        const auto previousProfit = previous.getRealizedProfitLoss();
+        const auto profit = reconciled.getRealizedProfitLoss();
+        const auto previousPeak = previous.getPeakQuantity();
+        const auto peak = reconciled.getPeakQuantity();
+        if (previousProfit.has_value() == profit.has_value() &&
+            (!profit.has_value() || qFuzzyCompare(1.0 + previousProfit.value(), 1.0 + profit.value())) &&
+            previousPeak.has_value() == peak.has_value() &&
+            (!peak.has_value() || qFuzzyCompare(1.0 + previousPeak.value(), 1.0 + peak.value())))
+        {
+            continue;
+        }
+        m_database->updatePosition(reconciled, reconciled.getClosedDateTime());
+        it.value() = reconciled;
+        m_loadedPositionsFromDatabase[it.key()] = reconciled;
+        INFO << "Reconciled closed position" << it.key() << "gross realized P&L:"
+             << (profit.has_value() ? QString::number(profit.value(), 'f', 2) : QStringLiteral("unavailable"));
+        emit receivedNewPosition(m_account, reconciled);
+    }
 }

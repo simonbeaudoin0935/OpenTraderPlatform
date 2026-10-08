@@ -1881,6 +1881,13 @@ void MainAlgo::onReceivedNewPosition(const QString& account, Position position)
 
     if (m_riskManager)
     {
+        if (!hasOpenShares && position.getRealizedProfitLoss().has_value() &&
+            (!previousPositionSnapshot.has_value() || !previousPositionSnapshot->getRealizedProfitLoss().has_value() ||
+             !qFuzzyCompare(1.0 + previousPositionSnapshot->getRealizedProfitLoss().value(),
+                            1.0 + position.getRealizedProfitLoss().value())))
+        {
+            m_riskManager->onPositionClosed(position, MainApp::getCurrentAppTime());
+        }
         m_riskManager->updateOpenPositionsCount(account,
                                                 getOpenPositionCountForAccount(account),
                                                 MainApp::getCurrentAppTime());
@@ -2007,6 +2014,7 @@ void MainAlgo::reconcilePendingEntryOrderFromPosition(const QString& p_account, 
     }
 
     Order syntheticFilledOrder = *bestCandidate;
+    syntheticFilledOrder.m_fillIsSynthetic = true;
     syntheticFilledOrder.m_orderStatus = Order::Status::FLL;
     syntheticFilledOrder.m_statusDescription = Order::getStatusDescriptionForStatus(Order::Status::FLL);
     syntheticFilledOrder.m_filledPrice = bestEffortSyntheticEntryFillPrice(syntheticFilledOrder, p_position);
@@ -2073,10 +2081,6 @@ void MainAlgo::onPositionDeleted(const QString& account, const QString& position
         const QString riskAccountId = !account.trimmed().isEmpty()
                                           ? account
                                           : (closedPosition.has_value() ? closedPosition->getAccountID() : QString());
-        if (closedPosition.has_value())
-        {
-            m_riskManager->onPositionClosed(closedPosition.value(), closedTs);
-        }
         m_riskManager->updateOpenPositionsCount(riskAccountId, getOpenPositionCountForAccount(riskAccountId), closedTs);
         refreshRiskStatusForAccount(riskAccountId);
     }
@@ -2222,6 +2226,7 @@ bool MainAlgo::reconcileCloseOrderToFilled(const QString& p_defaultAccount,
     }
 
     const QDateTime closeTimestamp = p_closedTimestamp.isValid() ? p_closedTimestamp : MainApp::getCurrentAppTime();
+    p_order.m_fillIsSynthetic = true;
     p_order.m_orderStatus = Order::Status::FLL;
     p_order.m_statusDescription = Order::getStatusDescriptionForStatus(Order::Status::FLL);
 
@@ -2312,6 +2317,12 @@ void MainAlgo::onLoadedOrdersFromDatabase(const QString& account,
 
 void MainAlgo::onReceivedNewOrder(const QString& account, Order order)
 {
+    // Reconciliation reads persisted snapshots and excludes synthetic fill estimates.
+    if (order.getFilledPrice() > 0.0)
+    {
+        OBJ_ASSUME_DIFF(m_positionReceiver, nullptr);
+        m_positionReceiver->reconcileClosedPositions(order.getSymbol());
+    }
     const QString orderID = order.getOrderID();
     if (!orderID.trimmed().isEmpty())
     {

@@ -7,6 +7,7 @@ ShortcutSettings::ShortcutSettings() : QObject(nullptr)
     Q_CHECK_PTR(appStateSettings);
     m_settings = appStateSettings;
 
+    migrateLegacyTimeFrameShortcuts(*m_settings);
     loadShortcuts();
 }
 
@@ -180,28 +181,61 @@ QKeySequence ShortcutSettings::getDefaultShortcut(ShortcutId p_id) const
     case CloseChartWindow:
         return QKeySequence("Ctrl+W");
     case TimeFrame10s:
-        return QKeySequence("1");
+        return QKeySequence();
     case TimeFrame1m:
-        return QKeySequence("2");
+        return QKeySequence("1");
     case TimeFrame5m:
-        return QKeySequence("3");
+        return QKeySequence("2");
     case TimeFrame15m:
-        return QKeySequence("4");
+        return QKeySequence("3");
     case TimeFrame30m:
-        return QKeySequence("5");
+        return QKeySequence("4");
     case TimeFrame1h:
-        return QKeySequence("6");
+        return QKeySequence("5");
     case TimeFrame4h:
-        return QKeySequence("7");
+        return QKeySequence("6");
     case TimeFrame1d:
-        return QKeySequence("8");
+        return QKeySequence("7");
     case TimeFrame1w:
-        return QKeySequence("9");
+        return QKeySequence("8");
     case TimeFrame1M:
-        return QKeySequence("0");
+        return QKeySequence("9");
     default:
         return QKeySequence();
     }
+}
+
+void ShortcutSettings::migrateLegacyTimeFrameShortcuts(QSettings& p_settings)
+{
+    const QStringList names{"TimeFrame10s",
+                            "TimeFrame1m",
+                            "TimeFrame5m",
+                            "TimeFrame15m",
+                            "TimeFrame30m",
+                            "TimeFrame1h",
+                            "TimeFrame4h",
+                            "TimeFrame1d",
+                            "TimeFrame1w",
+                            "TimeFrame1M"};
+    bool legacyLayout = true;
+    for (int i = 0; i < names.size(); ++i)
+    {
+        const QString key = QStringLiteral("Shortcuts/") + names[i];
+        const QString oldDefault = QString::number((i + 1) % 10);
+        if (QKeySequence::fromString(p_settings.value(key, oldDefault).toString()) != QKeySequence(oldDefault))
+        {
+            legacyLayout = false;
+            break;
+        }
+    }
+    if (legacyLayout)
+    {
+        for (const auto& name: names)
+        {
+            p_settings.remove(QStringLiteral("Shortcuts/") + name);
+        }
+    }
+    p_settings.remove(QStringLiteral("Shortcuts/TimeFrame10s"));
 }
 
 void ShortcutSettings::loadShortcuts()
@@ -295,7 +329,6 @@ QList<ShortcutSettings::ShortcutId> ShortcutSettings::getAllShortcutIds() const
             ToggleReplayMode,
             OpenNewChart,
             CloseChartWindow,
-            TimeFrame10s,
             TimeFrame1m,
             TimeFrame5m,
             TimeFrame15m,

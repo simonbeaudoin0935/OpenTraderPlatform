@@ -948,17 +948,25 @@ void RiskManager::onPositionClosed(const Position& p_position, const QDateTime& 
         return;
     }
 
-    bool ok = false;
-    const double positionPnl = p_position.getTodaysProfitLoss().trimmed().toDouble(&ok);
-    if (!ok)
+    const auto realizedPnl = p_position.getRealizedProfitLoss();
+    if (!realizedPnl.has_value())
     {
+        sWARNING << "Deferring closed-position cooldown evaluation until fills are reconciled:"
+                 << p_position.getPositionID();
         return;
     }
+    const double positionPnl = realizedPnl.value();
 
     if (positionPnl <= -state.config.cooldownLossTriggerUsd)
     {
-        const QDateTime cooldownUntil =
-            p_now.toTimeZone(TradingHours::MARKET_TIMEZONE).addSecs(state.config.cooldownDurationSec);
+        ASSUME_TRUE(p_position.getClosedDateTime().isValid());
+        const QDateTime cooldownUntil = p_position.getClosedDateTime()
+                                            .toTimeZone(TradingHours::MARKET_TIMEZONE)
+                                            .addSecs(state.config.cooldownDurationSec);
+        if (cooldownUntil <= p_now)
+        {
+            return;
+        }
         if (!state.runtime.cooldownUntil.isValid() || cooldownUntil > state.runtime.cooldownUntil)
         {
             state.runtime.cooldownUntil = cooldownUntil;

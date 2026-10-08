@@ -213,9 +213,15 @@ void PositionWidget::setupUI()
 
     // Setup model columns (Position ID at END like OrderWidget)
     QStringList headers;
-    headers << "Symbol" << "Quantity" << "Avg Price" << "Last" << "Unrealized P/L" << "Realized P/L" << "Market Value"
-            << "Position ID";
+    headers << "Symbol" << "Quantity" << "Avg Price" << "Last" << "U. P&L" << "R. P&L" << "Market Value"
+            << "Peak Shares" << "Position ID";
     model->setHorizontalHeaderLabels(headers);
+    model->setHeaderData(4, Qt::Horizontal, "Unrealized profit and loss on the open position.", Qt::ToolTipRole);
+    model->setHeaderData(
+        5,
+        Qt::Horizontal,
+        "Realized profit and loss on the closed position: gross profit from executed orders, before fees.",
+        Qt::ToolTipRole);
 
     // Configure table view
     tableView->setModel(model);
@@ -224,7 +230,7 @@ void PositionWidget::setupUI()
     tableView->setSelectionBehavior(QAbstractItemView::SelectRows);
     tableView->setEditTriggers(QAbstractItemView::NoEditTriggers);
     tableView->setAlternatingRowColors(true);
-    tableView->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
+    tableView->setHorizontalScrollBarPolicy(Qt::ScrollBarAsNeeded);
     tableView->setContextMenuPolicy(Qt::CustomContextMenu);
 
     // Connect click signal
@@ -246,19 +252,17 @@ void PositionWidget::setupUI()
     tableView->setColumnWidth(4, 90); // Unrealized P/L
     tableView->setColumnWidth(5, 90); // Realized P/L
     tableView->setColumnWidth(6, 90); // Market Value
-    tableView->setColumnWidth(7, 90); // Position ID
+    tableView->setColumnWidth(7, 90); // Peak Shares
+    tableView->setColumnWidth(8, 90); // Position ID
 
     // Add widgets to layout
     mainLayout->addWidget(m_headerWidget);
     mainLayout->addWidget(tableView);
 
-    // Set fixed width based on total column widths
-    int totalWidth = 0;
-    for (int i = 0; i < headers.size(); ++i)
-    {
-        totalWidth += tableView->columnWidth(i);
-    }
-    setFixedWidth(totalWidth);
+    QSizePolicy sizingPolicy(QSizePolicy::Preferred, QSizePolicy::Expanding);
+    sizingPolicy.setHorizontalStretch(1);
+    setSizePolicy(sizingPolicy);
+    setMinimumWidth(220);
 }
 
 void PositionWidget::setupStyles()
@@ -505,15 +509,22 @@ QList<QStandardItem*> PositionWidget::createRowItems(const Position& position)
     // else: leave empty for closed positions
     items << unrealizedItem;
 
-    // Realized P/L (only for closed positions, uses TodaysProfitLoss field)
-    double realizedPL = position.getTodaysProfitLoss().toDouble();
+    const auto realizedPL = position.getRealizedProfitLoss();
     auto realizedItem = new QStandardItem();
     realizedItem->setTextAlignment(Qt::AlignCenter);
     if (qty == 0)
     {
-        QString text = QString::number(realizedPL, 'f', 2);
-        realizedItem->setText(text);
-        realizedItem->setForeground(realizedPL >= 0 ? QColor(Qt::green) : QColor(Qt::red));
+        if (realizedPL.has_value())
+        {
+            realizedItem->setText(QString::number(realizedPL.value(), 'f', 2));
+            realizedItem->setForeground(realizedPL.value() >= 0 ? QColor(Qt::green) : QColor(Qt::red));
+            realizedItem->setToolTip("Gross realized P/L from executed orders, before fees.");
+        }
+        else
+        {
+            realizedItem->setText("Pending");
+            realizedItem->setToolTip("Realized P/L unavailable until complete position fill history is reconciled.");
+        }
     }
     // else: leave empty for open positions
     items << realizedItem;
@@ -522,6 +533,16 @@ QList<QStandardItem*> PositionWidget::createRowItems(const Position& position)
     auto marketValueItem = new QStandardItem(QString::number(position.getMarketValue().toDouble(), 'f', 2));
     marketValueItem->setTextAlignment(Qt::AlignCenter);
     items << marketValueItem;
+
+    auto peakItem = new QStandardItem();
+    peakItem->setTextAlignment(Qt::AlignCenter);
+    if (!isOpenPosition(position))
+    {
+        const auto peak = position.getPeakQuantity();
+        peakItem->setText(peak.has_value() ? QString::number(peak.value(), 'g', 15) : QStringLiteral("Pending"));
+        peakItem->setToolTip("Largest number of shares held at once during this position, reconstructed from fills.");
+    }
+    items << peakItem;
 
     // Position ID (at end, like OrderWidget)
     auto positionIDItem = new QStandardItem(position.getPositionID());
@@ -583,7 +604,7 @@ void PositionWidget::onCustomContextMenuRequested(const QPoint& p_pos)
     }
 
     QStandardItem* const quantityItem = model->item(index.row(), 1);
-    QStandardItem* const positionIDItem = model->item(index.row(), 7);
+    QStandardItem* const positionIDItem = model->item(index.row(), 8);
     if (quantityItem == nullptr || positionIDItem == nullptr)
     {
         return;
