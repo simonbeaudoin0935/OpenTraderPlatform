@@ -8,6 +8,8 @@
 #include <QApplication>
 #include <QComboBox>
 #include <QScreen>
+#include <QFrame>
+#include <QPushButton>
 #include <QWindow>
 #include <QShortcut>
 #include <QCoreApplication>
@@ -270,12 +272,7 @@ GUIFrontend::GUIFrontend(MainAlgo* p_mainAlgo, QObject* parent) : QObject(parent
                                   [this]()
                                   {
                                       logInputEvent(u"GUIFrontend", u"quit-application-shortcut");
-                                      saveMainWindowGeometry();
-                                      if (m_windowManager)
-                                      {
-                                          m_windowManager->saveWindowState();
-                                          m_windowManager->setShuttingDown();
-                                      }
+                                      prepareForShutdown();
                                       MainApp::getInstance()->shutdown();
                                   });
     OBJ_ASSUME_TRUE(quitConnection);
@@ -540,6 +537,26 @@ GUIFrontend::GUIFrontend(MainAlgo* p_mainAlgo, QObject* parent) : QObject(parent
     // Add spacer to push mode labels to the right
     auto* rightSpacer = new QSpacerItem(40, 20, QSizePolicy::Expanding, QSizePolicy::Minimum);
     ui->topControlsLayout->insertSpacerItem(8, rightSpacer);
+
+    m_criticalLogButton = new QPushButton(m_mainWindow);
+    Q_CHECK_PTR(m_criticalLogButton);
+    m_criticalLogButton->setSizePolicy(QSizePolicy::Fixed, QSizePolicy::Fixed);
+    m_criticalLogButton->setCursor(Qt::PointingHandCursor);
+    m_criticalLogButton->setFocusPolicy(Qt::NoFocus);
+    ui->topControlsLayout->addWidget(m_criticalLogButton, 0, Qt::AlignRight);
+    auto criticalPopupConnection = connect(m_criticalLogButton,
+                                           &QPushButton::clicked,
+                                           this,
+                                           &GUIFrontend::showRecentCriticalLogsPopup,
+                                           Qt::UniqueConnection);
+    OBJ_ASSUME_TRUE(criticalPopupConnection);
+    auto criticalCountConnection = connect(&LogBroadcaster::instance(),
+                                           &LogBroadcaster::criticalLogCountChanged,
+                                           this,
+                                           &GUIFrontend::updateCriticalLogCountLabel,
+                                           Qt::QueuedConnection);
+    OBJ_ASSUME_TRUE(criticalCountConnection);
+    updateCriticalLogCountLabel(LogBroadcaster::criticalLogCount());
 
     // Create tristate trading-mode indicator (right side: LIVE / SIM / REPLAY pills)
     bool isSimMode = (MainApp::getTradingMode() == TradingMode::Sim);
@@ -1904,6 +1921,100 @@ void GUIFrontend::updateStatusBar()
     {
         m_dataUsageLabel->setText(message);
     }
+}
+
+void GUIFrontend::updateCriticalLogCountLabel(int p_count)
+{
+    OBJ_ASSUME_DIFF(m_criticalLogButton, nullptr);
+    // Queued updates can arrive out of order across threads; never show a smaller count.
+    const int count = std::max(p_count, LogBroadcaster::criticalLogCount());
+    const bool hasCriticals = count > 0;
+    m_criticalLogButton->setText(QStringLiteral("CRIT: %1").arg(count));
+    m_criticalLogButton->setStyleSheet(
+        hasCriticals ? "QPushButton { background-color: #8B0000; color: #ffffff; border: 1px solid #ff4500; "
+                       "border-radius: 4px; padding: 5px 10px; font-weight: bold; }"
+                     : "QPushButton { background-color: #2b2b2b; color: #888888; border: 1px solid #4a4a4a; "
+                       "border-radius: 4px; padding: 5px 10px; }");
+    m_criticalLogButton->setToolTip(QStringLiteral("Critical (CRIT) log lines since the platform started.\n"
+                                                   "Click to show the latest ones."));
+}
+
+void GUIFrontend::showRecentCriticalLogsPopup()
+{
+    OBJ_ASSUME_DIFF(m_criticalLogButton, nullptr);
+    const QStringList recent = LogBroadcaster::recentCriticalLogs();
+    logInputEvent(u"GUIFrontend", u"show-recent-critical-logs", {inputDetail(u"count", recent.size())});
+
+    // Qt::Popup closes itself on any click outside, like a sticky tooltip.
+    auto* popup = new QFrame(m_mainWindow, Qt::Popup);
+    Q_CHECK_PTR(popup);
+    popup->setAttribute(Qt::WA_DeleteOnClose);
+    popup->setObjectName("CriticalLogsPopup");
+    popup->setStyleSheet("QFrame#CriticalLogsPopup { background-color: #1e1e1e; border: 1px solid #ff4500; }"
+                         "QLabel { color: #dddddd; font-family: monospace; font-size: 11px; }");
+    auto* layout = new QVBoxLayout(popup);
+    layout->setContentsMargins(8, 6, 8, 6);
+    layout->setSpacing(4);
+
+    auto* header = new QLabel(popup);
+    header->setText(QStringLiteral("<b>Last %1 CRIT log line(s)</b> &mdash; %2")
+                        .arg(recent.size())
+                        .arg(LogBroadcaster::currentLogFilePath().toHtmlEscaped()));
+    layout->addWidget(header);
+
+    auto* body = new QLabel(popup);
+    body->setTextFormat(Qt::PlainText);
+    body->setTextInteractionFlags(Qt::TextSelectableByMouse);
+    body->setText(recent.isEmpty() ? QStringLiteral("No critical logs this session.") : recent.join('\n'));
+    body->setMaximumWidth(m_mainWindow->width() * 3 / 4);
+    body->setWordWrap(true);
+    layout->addWidget(body);
+
+    popup->adjustSize();
+    QPoint pos = m_criticalLogButton->mapToGlobal(QPoint(m_criticalLogButton->width(), m_criticalLogButton->height()));
+    pos.rx() -= popup->width();
+    if (const QScreen* screen = m_criticalLogButton->screen())
+    {
+        const QRect available = screen->availableGeometry();
+        pos.setX(std::clamp(pos.x(), available.left(), std::max(available.left(), available.right() - popup->width())));
+    }
+    popup->move(pos);
+    popup->show();
+}
+
+void GUIFrontend::prepareForShutdown()
+{
+    // Save chart window state NOW, before shutdown closes them
+    saveMainWindowGeometry();
+    if (m_windowManager)
+    {
+        m_windowManager->saveWindowState();
+        m_windowManager->setShuttingDown();
+    }
+    showCriticalLogsReminderIfNeeded();
+}
+
+void GUIFrontend::showCriticalLogsReminderIfNeeded()
+{
+    const int count = LogBroadcaster::criticalLogCount();
+    if (count == 0 || m_criticalLogsReminderShown)
+    {
+        return;
+    }
+    m_criticalLogsReminderShown = true;
+
+    const QString logFilePath = LogBroadcaster::currentLogFilePath();
+    qCWarning(GUIFrontendLog) << "Closing with" << count << "critical log line(s) in" << logFilePath;
+
+    QMessageBox msgBox(m_mainWindow);
+    msgBox.setIcon(QMessageBox::Warning);
+    msgBox.setWindowTitle(QStringLiteral("Critical logs this session"));
+    msgBox.setText(QStringLiteral("%1 critical (CRIT) log line(s) were written during this session.").arg(count));
+    msgBox.setInformativeText(QStringLiteral("Review the log before the next session:\n%1").arg(logFilePath));
+    msgBox.setTextInteractionFlags(Qt::TextSelectableByMouse);
+    msgBox.setStandardButtons(QMessageBox::Ok);
+    msgBox.exec();
+    logInputEvent(u"GUIFrontend", u"acknowledge-critical-logs-reminder", {inputDetail(u"count", count)});
 }
 
 void GUIFrontend::onTSClientDataUsageUpdate(qsizetype newDataUsage)
@@ -5559,13 +5670,7 @@ bool GUIFrontend::eventFilter(QObject* p_watched, QEvent* p_event)
     // Handle main window close event
     if (p_watched == m_mainWindow && p_event->type() == QEvent::Close)
     {
-        // Save chart window state NOW, before shutdown closes them
-        saveMainWindowGeometry();
-        if (m_windowManager)
-        {
-            m_windowManager->saveWindowState();
-            m_windowManager->setShuttingDown();
-        }
+        prepareForShutdown();
 
         // Call shutdown for graceful cleanup (same as Ctrl+Q)
         MainApp::getInstance()->shutdown();

@@ -862,4 +862,7 @@ namespace AsyncLogger
     // wait at ~10 ms.
     inline constexpr int CRASH_FLUSH_RETRIES = 10;
     inline constexpr long CRASH_FLUSH_RETRY_DELAY_NS = 1'000'000; // 1 ms
+
+    // Number of most recent CRIT lines kept in memory for the GUI CRIT badge popup.
+    inline constexpr qsizetype RECENT_CRITICAL_LOG_CAPACITY = 10;
 } // namespace AsyncLogger

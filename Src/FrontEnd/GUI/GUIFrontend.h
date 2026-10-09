@@ -212,6 +212,10 @@ class GUIFrontend : public QObject
     qint64 memoryUsage = 0;
 
     void updateStatusBar();
+    void updateCriticalLogCountLabel(int p_count);
+    void showRecentCriticalLogsPopup();
+    void prepareForShutdown();
+    void showCriticalLogsReminderIfNeeded();
 
     int maxLiveLogLines = 1000; // Maximum lines in live log display
 
@@ -304,6 +308,8 @@ class GUIFrontend : public QObject
 
     QLabel* m_sessionLabel = nullptr;           // Trading session indicator
     QLabel* m_timeDisplayLabel = nullptr;       // Application time display (live or replay)
+    QPushButton* m_criticalLogButton = nullptr; // CRIT count badge; click shows the latest CRIT lines
+    bool m_criticalLogsReminderShown = false;
     QTimer* m_timeUpdateTimer = nullptr;        // Timer to update time display
     QTimer m_displayRefreshTimer;               // 30 Hz pull-based display refresh timer
     TradingModeBar* m_tradingModeBar = nullptr; // LIVE / SIM / REPLAY tristate mode indicator

@@ -174,7 +174,13 @@ m_replayEngine->pauseReplay();
 **Centralized logging system with categories**
 
 **Architecture**:
-- **LogBroadcaster**: Singleton that distributes log messages
+- **LogBroadcaster**: Singleton that distributes log messages. It also counts every
+  `CRIT` line written to the platform log, before category filters are applied
+  (`criticalLogCount()`, signal `criticalLogCountChanged(int)`, emitted from the logging
+  thread; connect queued) and keeps the last `AsyncLogger::RECENT_CRITICAL_LOG_CAPACITY`
+  (10) lines (`recentCriticalLogs()`). The GUI shows the count as the `CRIT: N` badge in
+  the top bar; clicking it opens a popup with those recent lines. On close, a reminder
+  dialog with the log path pops up when N > 0.
 - **LoggingConfig**: Singleton for runtime configuration
 - Category-based filtering
 - Multiple outputs (file, console, GUI)
