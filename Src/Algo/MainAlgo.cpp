@@ -1319,7 +1319,7 @@ void MainAlgo::routeBar(const QString& p_symbol, const Bar& p_bar)
     QPointer<SymbolContext> sc = m_symbolContexts.value(p_symbol);
     if (!sc.isNull())
     {
-        sc->barReceiver.onReceivedNewBar(p_bar);
+        sc->enqueueBar(p_bar);
     }
 }
 
@@ -2960,14 +2960,24 @@ void SymbolContext::enqueueLevel2(const Level2& p_level2)
 
 void SymbolContext::enqueueTrade(const Trade& p_trade)
 {
+    enqueueWorkItem(WorkItem{p_trade}, "Trade");
+}
+
+void SymbolContext::enqueueBar(const Bar& p_bar)
+{
+    enqueueWorkItem(WorkItem{p_bar}, "Bar");
+}
+
+void SymbolContext::enqueueWorkItem(WorkItem&& p_item, [[maybe_unused]] const char* p_kind)
+{
     [[maybe_unused]] int depth = 0;
     {
         QMutexLocker lock(&m_queueMutex);
-        m_queue.enqueue(WorkItem{p_trade});
+        m_queue.enqueue(std::move(p_item));
         depth = m_queue.size();
     }
     m_pendingWorkItems.fetch_add(1, std::memory_order_release);
-    LTTnG_TP(opentraderplatform, symbolctx_enqueue, symbol.toUtf8().constData(), "Trade", depth);
+    LTTnG_TP(opentraderplatform, symbolctx_enqueue, symbol.toUtf8().constData(), p_kind, depth);
     if (!m_draining.exchange(true, std::memory_order_acq_rel))
     {
         LTTnG_TP(opentraderplatform, symbolctx_pool_submit, symbol.toUtf8().constData());
@@ -3029,6 +3039,10 @@ void SymbolContext::drain()
                     LTTnG_TP(opentraderplatform, symbolctx_process_trade, symbol.toUtf8().constData());
                     processTrade(event);
                 }
+                else if constexpr (std::is_same_v<T, Bar>)
+                {
+                    processBar(event);
+                }
             },
             item);
         ++itemsProcessed;
@@ -3048,12 +3062,32 @@ void SymbolContext::processLevel2(const Level2& p_level2)
     }
 }
 
+void SymbolContext::processBar(const Bar& p_bar)
+{
+    barReceiver.onReceivedNewBar(p_bar);
+
+    if (p_bar.getBarStatus() == Bar::BarStatus::Closed)
+    {
+        m_barAggregator.onNewBar(symbol, p_bar);
+    }
+    else if (p_bar.getBarStatus() == Bar::BarStatus::Open)
+    {
+        m_barAggregator.onBarUpdated(symbol, p_bar);
+    }
+}
+
 void SymbolContext::processTrade(const Trade& p_trade)
 {
     m_activity.recordTrade(QDateTime::currentMSecsSinceEpoch());
     if (isWithinSupportedIntradayBarSession(p_trade.m_timestamp))
     {
-        m_liveBarAccumulator.onNewTrade(symbol, p_trade);
+        // In live/sim the TradeStation bar stream owns the 1m candle (see processBar). Live trades here
+        // are synthesized from quote snapshots, which only carry the latest print, so building a second
+        // 1m bar from them would fight the real one (lower volume, different close) and make it jitter.
+        if (MainApp::getDataSourceMode() != DataSourceMode::Live)
+        {
+            m_liveBarAccumulator.onNewTrade(symbol, p_trade);
+        }
         m_live10sBarAccumulator.onNewTrade(symbol, p_trade);
     }
     else

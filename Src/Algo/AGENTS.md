@@ -365,7 +365,9 @@ connect(&m_barAggregator, &BarAggregator::barClosed,
 
 **Role**: Receive and process bar data
 
-`BarReceiver` processes bars produced by `LiveBarAccumulator`. Bars come from `DBClient::newTrade` → MainAlgo routing → `SymbolContext::enqueueTrade()` → `LiveBarAccumulator::onNewTrade()` (via DirectConnection in drain loop). This path is identical for both live and replay modes.
+`BarReceiver` publishes exactly one source of 1m bars per mode:
+- **Replay**: `DBClient::newTrade` → `MainAlgo::routeTrade` → `SymbolContext::enqueueTrade()` → `LiveBarAccumulator::onNewTrade()` (drain loop) → `BarReceiver`.
+- **Live/Sim**: TradeStation bar stream → `MainAlgo::routeBar` → `SymbolContext::enqueueBar()` → `processBar()` (drain loop) → `BarReceiver` and `BarAggregator` (Closed → `onNewBar`, Open → `onBarUpdated`). Quote-derived synthetic trades (`MainAlgo::routeQuote`) still feed Time & Sales and the 10s accumulator, but **not** the 1m accumulator: they only sample the latest print, so a second quote-built 1m bar would fight the real one (lower volume, different close) and make the live candle jitter.
 
 ```cpp
 class BarReceiver : public StreamReceiver {

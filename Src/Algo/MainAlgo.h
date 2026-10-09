@@ -211,6 +211,9 @@ class SymbolContext : public QObject
     /// @brief Enqueue a Trade event for processing (thread-safe, called from any thread)
     void enqueueTrade(const Trade& p_trade);
 
+    /// @brief Enqueue a 1m bar from the TradeStation bar stream (thread-safe, called from any thread)
+    void enqueueBar(const Bar& p_bar);
+
     /// @brief Returns true while this symbol still has queued or currently draining replay work.
     [[nodiscard]] bool hasReplayBacklog() const
     {
@@ -266,11 +269,13 @@ class SymbolContext : public QObject
     void receivedNewTrade(const QString& p_symbol, const Trade& p_trade);
 
   private:
-    using WorkItem = std::variant<Level2, Trade>;
+    using WorkItem = std::variant<Level2, Trade, Bar>;
 
+    void enqueueWorkItem(WorkItem&& p_item, const char* p_kind);
     void drain();
     void processLevel2(const Level2& p_level2);
     void processTrade(const Trade& p_trade);
+    void processBar(const Bar& p_bar);
 
     QMutex m_queueMutex;
     QQueue<WorkItem> m_queue;
