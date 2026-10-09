@@ -14,7 +14,6 @@ class BarUtilsTests : public QObject
         QTest::addColumn<TimeFrame>("timeFrame");
         QTest::addColumn<int>("slotCount");
         QTest::newRow("1s") << TimeFrame::ONE_SECOND << 57600;
-        QTest::newRow("10s") << TimeFrame::TEN_SECONDS << 5760;
         QTest::newRow("1m") << TimeFrame::ONE_MINUTE << 960;
         QTest::newRow("5m") << TimeFrame::FIVE_MINUTES << 192;
         QTest::newRow("15m") << TimeFrame::FIFTEEN_MINUTES << 64;
@@ -45,7 +44,6 @@ class BarUtilsTests : public QObject
 
     void sourceSelection()
     {
-        QCOMPARE(BarUtils::aggregateSourceTimeFrame(TimeFrame::TEN_SECONDS), TimeFrame::ONE_SECOND);
         for (auto tf: {TimeFrame::FIVE_MINUTES, TimeFrame::FIFTEEN_MINUTES, TimeFrame::THIRTY_MINUTES})
             QCOMPARE(BarUtils::aggregateSourceTimeFrame(tf), TimeFrame::ONE_MINUTE);
         QCOMPARE(BarUtils::aggregateSourceTimeFrame(TimeFrame::FOUR_HOURS), TimeFrame::ONE_HOUR);

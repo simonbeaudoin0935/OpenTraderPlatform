@@ -7,8 +7,6 @@ QString timeFrameToString(TimeFrame timeframe)
 {
     switch (timeframe)
     {
-    case TimeFrame::TEN_SECONDS:
-        return "10s";
     case TimeFrame::ONE_MINUTE:
         return "1m";
     case TimeFrame::FIVE_MINUTES:
@@ -37,8 +35,6 @@ QString timeFrameToString(TimeFrame timeframe)
  */
 TimeFrame stringToTimeFrame(const QString& timeframeStr)
 {
-    if (timeframeStr == "10s")
-        return TimeFrame::TEN_SECONDS;
     if (timeframeStr == "1m")
         return TimeFrame::ONE_MINUTE;
     if (timeframeStr == "5m")
@@ -60,4 +56,24 @@ TimeFrame stringToTimeFrame(const QString& timeframeStr)
 
     // Default to 1 minute for invalid strings
     return TimeFrame::ONE_MINUTE;
+}
+
+TimeFrame normalizeDisplayTimeFrame(TimeFrame timeframe)
+{
+    switch (timeframe)
+    {
+    case TimeFrame::ONE_MINUTE:
+    case TimeFrame::FIVE_MINUTES:
+    case TimeFrame::FIFTEEN_MINUTES:
+    case TimeFrame::THIRTY_MINUTES:
+    case TimeFrame::ONE_HOUR:
+    case TimeFrame::FOUR_HOURS:
+    case TimeFrame::ONE_DAY:
+    case TimeFrame::ONE_WEEK:
+    case TimeFrame::ONE_MONTH:
+        return timeframe;
+    case TimeFrame::ONE_SECOND:
+    default:
+        return TimeFrame::ONE_MINUTE;
+    }
 }

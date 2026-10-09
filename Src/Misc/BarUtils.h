@@ -54,7 +54,7 @@ namespace BarUtils
     /**
  * @brief Returns the number of whole minutes per bar for minute-granularity timescales.
  *
- * Returns secondsPerBar / 60. For sub-minute timescales (TEN_SECONDS, ONE_SECOND)
+ * Returns secondsPerBar / 60. For the sub-minute ONE_SECOND data-source timescale,
  * this is 0 — use secondsPerBar() instead.
  *
  * @param p_tf The timescale
@@ -68,12 +68,12 @@ namespace BarUtils
     /**
  * @brief Returns true if the timescale covers only part of a single trading day.
  *
- * Intraday timescales (10s, 1m, 5m, 15m, 30m, 1h, 4h) are stored day-by-day
+ * Intraday timescales (1m, 5m, 15m, 30m, 1h, 4h) are stored day-by-day
  * with multiple bars per day. Daily+ timescales (1d, 1w, 1M) use a
  * single-bar-per-day keying scheme and may span multiple calendar days.
  *
  * @param p_tf The timescale to test
- * @return true for 10s, 1m, 5m, 15m, 30m, 1h, 4h; false for 1d, 1w, 1M
+ * @return true for 1m, 5m, 15m, 30m, 1h, 4h; false for 1d, 1w, 1M
  */
     [[nodiscard]] inline constexpr bool isIntradayTimeFrame(TimeFrame p_tf)
     {
@@ -101,7 +101,6 @@ namespace BarUtils
  * For native timescales, returns the timescale itself (no aggregation needed).
  * For derived timescales, returns the finest native timescale to fetch first:
  *
- *   10s             →  ONE_SECOND   (fetch 1s bars from Ohlcv1S, then aggregate 10×)
  *   5m / 15m / 30m  →  ONE_MINUTE  (fetch 1m bars, then aggregate)
  *   4h              →  ONE_HOUR    (fetch 1h bars, then aggregate)
  *   1w / 1M         →  ONE_DAY     (fetch 1d bars, then aggregate)
@@ -113,9 +112,6 @@ namespace BarUtils
     {
         if (isNativeTimeFrame(p_tf))
             return p_tf;
-
-        if (p_tf == TimeFrame::TEN_SECONDS)
-            return TimeFrame::ONE_SECOND;
 
         if (p_tf == TimeFrame::FIVE_MINUTES || p_tf == TimeFrame::FIFTEEN_MINUTES || p_tf == TimeFrame::THIRTY_MINUTES)
             return TimeFrame::ONE_MINUTE;

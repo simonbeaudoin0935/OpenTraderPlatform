@@ -227,21 +227,11 @@ void MacdIndicator::clear()
 
 int MacdIndicator::indexStepUnits(const TimeFrame tf)
 {
-    if (tf == TimeFrame::TEN_SECONDS)
-    {
-        return 1;
-    }
-
     return BarUtils::minutesPerBar(tf);
 }
 
 double MacdIndicator::indexKeyOffset(const TimeFrame tf)
 {
-    if (tf == TimeFrame::TEN_SECONDS)
-    {
-        return 0.5;
-    }
-
     return static_cast<double>(BarUtils::minutesPerBar(tf)) / 2.0;
 }
 

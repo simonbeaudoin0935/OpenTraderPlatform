@@ -2743,7 +2743,6 @@ SymbolContext::SymbolContext(const QString& p_symbol, QObject* p_parent)
     , barReceiver(p_symbol, this)
     , m_level2Receiver(p_symbol, this)
     , m_liveBarAccumulator(this, 60)
-    , m_live10sBarAccumulator(this, 10)
     , m_barAggregator(this)
 {
     this->setObjectName("SymbolContext::" + p_symbol);
@@ -2796,15 +2795,6 @@ SymbolContext::SymbolContext(const QString& p_symbol, QObject* p_parent)
     // Wire BarAggregator::barClosed → BarCache for higher-TF storage
     connected =
         connect(&m_barAggregator, &BarAggregator::barClosed, &barCache, &BarCache::storeBar, Qt::DirectConnection);
-    OBJ_ASSUME_TRUE(connected);
-
-    // Wire 10s accumulator barClosed → BarCache for 10s bar storage
-    connected = connect(
-        &m_live10sBarAccumulator,
-        &LiveBarAccumulator::barClosed,
-        &barCache,
-        [this](const QString&, const Bar& bar) { barCache.storeBar(TimeFrame::TEN_SECONDS, bar); },
-        Qt::DirectConnection);
     OBJ_ASSUME_TRUE(connected);
 
     // ── Always-populate DisplaySnapshot ──────────────────────────────────
@@ -2866,35 +2856,6 @@ SymbolContext::SymbolContext(const QString& p_symbol, QObject* p_parent)
             LTTnG_TP(opentraderplatform, snapshot_write, symbol.toUtf8().constData(), "aggregator");
             QWriteLocker lock(&m_displaySnapshot.lock);
             m_displaySnapshot.aggregatorBars[tf] = bar;
-            m_displaySnapshot.aggregatorDirty = true;
-        },
-        Qt::DirectConnection);
-    OBJ_ASSUME_TRUE(connected);
-
-    // 10s accumulator → snapshot
-    connected = connect(
-        &m_live10sBarAccumulator,
-        &LiveBarAccumulator::barUpdated,
-        this,
-        [this](const QString&, const Bar& bar)
-        {
-            LTTnG_TP(opentraderplatform, snapshot_write, symbol.toUtf8().constData(), "aggregator10s");
-            QWriteLocker lock(&m_displaySnapshot.lock);
-            m_displaySnapshot.aggregatorBars[TimeFrame::TEN_SECONDS] = bar;
-            m_displaySnapshot.aggregatorDirty = true;
-        },
-        Qt::DirectConnection);
-    OBJ_ASSUME_TRUE(connected);
-
-    connected = connect(
-        &m_live10sBarAccumulator,
-        &LiveBarAccumulator::barClosed,
-        this,
-        [this](const QString&, const Bar& bar)
-        {
-            LTTnG_TP(opentraderplatform, snapshot_write, symbol.toUtf8().constData(), "aggregator10s");
-            QWriteLocker lock(&m_displaySnapshot.lock);
-            m_displaySnapshot.aggregatorBars[TimeFrame::TEN_SECONDS] = bar;
             m_displaySnapshot.aggregatorDirty = true;
         },
         Qt::DirectConnection);
@@ -3088,7 +3049,6 @@ void SymbolContext::processTrade(const Trade& p_trade)
         {
             m_liveBarAccumulator.onNewTrade(symbol, p_trade);
         }
-        m_live10sBarAccumulator.onNewTrade(symbol, p_trade);
     }
     else
     {

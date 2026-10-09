@@ -17,7 +17,6 @@ namespace
 {
     // Default auto-TF thresholds (lower, upper) in minutes for each timeframe
     const QMap<TimeFrame, std::pair<int, int>> DEFAULT_AUTO_TF_THRESHOLDS = {
-        {TimeFrame::TEN_SECONDS, {0, 30}},        // 0min to 30min
         {TimeFrame::ONE_MINUTE, {30, 150}},       // 30min to 2.5h
         {TimeFrame::FIVE_MINUTES, {120, 480}},    // 2h to 8h
         {TimeFrame::FIFTEEN_MINUTES, {240, 960}}, // 4h to 16h
@@ -390,8 +389,7 @@ void ConfigTab::setupUI()
     QVBoxLayout* autoTfLayout = new QVBoxLayout(autoTfGroupBox);
 
     // Create threshold controls for each intraday timeframe
-    const QList<TimeFrame> intradayTfs = {TimeFrame::TEN_SECONDS,
-                                          TimeFrame::ONE_MINUTE,
+    const QList<TimeFrame> intradayTfs = {TimeFrame::ONE_MINUTE,
                                           TimeFrame::FIVE_MINUTES,
                                           TimeFrame::FIFTEEN_MINUTES,
                                           TimeFrame::THIRTY_MINUTES,

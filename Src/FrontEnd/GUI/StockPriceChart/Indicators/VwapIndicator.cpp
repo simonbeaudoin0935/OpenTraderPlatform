@@ -139,21 +139,11 @@ void VwapIndicator::clear()
 
 int VwapIndicator::indexStepUnits(const TimeFrame tf)
 {
-    if (tf == TimeFrame::TEN_SECONDS)
-    {
-        return 1;
-    }
-
     return BarUtils::minutesPerBar(tf);
 }
 
 double VwapIndicator::indexKeyOffset(const TimeFrame tf)
 {
-    if (tf == TimeFrame::TEN_SECONDS)
-    {
-        return 0.5;
-    }
-
     return static_cast<double>(BarUtils::minutesPerBar(tf)) / 2.0;
 }
 

@@ -140,7 +140,6 @@ class GUIFrontend : public QObject
                                      const QDateTime& from,
                                      const QDateTime& to,
                                      uint64_t p_requestToken);
-    void updateTenSecondTimeFrameAvailability();
     void onTimeFrameChanged(TimeFrame tf);
     bool isValidStockSymbol(const QString& symbol) const;
     void displayStock(const QString& symbol);

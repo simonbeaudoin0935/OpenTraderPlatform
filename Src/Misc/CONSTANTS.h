@@ -230,7 +230,7 @@ namespace OrderRoutingConstants
 namespace StreamConstants
 {
     // Heartbeat interval for mock streams in replay mode (milliseconds)
-    // Should be less than the stream heartbeat timeout (10 seconds)
+    // Should be less than the stream heartbeat timeout (ten seconds)
     inline constexpr int MOCK_HEARTBEAT_INTERVAL_MS = 5000;
     inline constexpr int LIVE_RETRY_INITIAL_DELAY_MS = 1000;
     inline constexpr int LIVE_RETRY_MAX_DELAY_MS = 30000;

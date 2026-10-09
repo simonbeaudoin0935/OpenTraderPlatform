@@ -50,12 +50,6 @@ class ChartToolbar : public QWidget
     void setCurrentTimeFrame(TimeFrame timeframe);
 
     /**
-     * @brief Enables/disables the 10-second timeframe option in the selector.
-     * @param enabled True to show 10s in the selector, false to hide it.
-     */
-    void setTenSecondTimeFrameEnabled(bool enabled);
-
-    /**
      * @brief Checks if auto timeframe selection is enabled.
      * @return True if auto selection is enabled, false otherwise.
      */
@@ -553,7 +547,6 @@ class ChartToolbar : public QWidget
     QLabel* m_haltedLabel;       ///< "HALTED" status indicator
     QLabel* m_delayedLabel;      ///< "DELAYED" status indicator
     QLabel* m_hardToBorrowLabel; ///< "HTB" (hard-to-borrow / SSR) status indicator
-    bool m_tenSecondTimeFrameEnabled = true;
 
     void populateTimeFrames();
     static void applyColorButtonStyle(QPushButton* button, const QColor& color);

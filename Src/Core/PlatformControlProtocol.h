@@ -117,7 +117,6 @@ namespace PlatformControlProtocol
     inline QStringList supportedBarTimeFrames()
     {
         return {
-            "10s",
             "1m",
             "5m",
             "15m",

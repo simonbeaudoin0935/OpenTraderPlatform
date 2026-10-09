@@ -17,7 +17,6 @@ class LiveBarAccumulatorTests : public QObject
     void intervalRollover_data()
     {
         QTest::addColumn<int>("interval");
-        QTest::newRow("10s") << 10;
         QTest::newRow("1m") << 60;
     }
 

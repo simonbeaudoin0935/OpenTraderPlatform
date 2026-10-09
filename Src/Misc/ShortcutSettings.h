@@ -34,7 +34,6 @@ class ShortcutSettings : public QObject
         OpenNewChart,
         CloseChartWindow,
         // Timescale shortcuts
-        TimeFrame10s,
         TimeFrame1m,
         TimeFrame5m,
         TimeFrame15m,

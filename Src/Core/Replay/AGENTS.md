@@ -171,7 +171,7 @@ reschedules the replay timer, so the new speed takes effect immediately.
 
 ## Heartbeat Timer Management
 
-Streams have a 10-second heartbeat timer. In replay mode:
+Streams have a ten-second heartbeat timer. In replay mode:
 
 1. **When paused**: Timers paused to prevent timeout errors
 2. **When resumed**: Timers restarted

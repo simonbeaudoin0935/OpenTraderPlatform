@@ -61,9 +61,6 @@ QString ShortcutSettings::getSettingsKey(ShortcutId p_id) const
     case CloseChartWindow:
         key += "CloseChartWindow";
         break;
-    case TimeFrame10s:
-        key += "TimeFrame10s";
-        break;
     case TimeFrame1m:
         key += "TimeFrame1m";
         break;
@@ -125,8 +122,6 @@ QString ShortcutSettings::getShortcutName(ShortcutId p_id) const
         return "Open New Chart";
     case CloseChartWindow:
         return "Close Chart Window";
-    case TimeFrame10s:
-        return "Timescale 10 seconds";
     case TimeFrame1m:
         return "Timescale 1 minute";
     case TimeFrame5m:
@@ -180,8 +175,6 @@ QKeySequence ShortcutSettings::getDefaultShortcut(ShortcutId p_id) const
         return QKeySequence("Ctrl+T");
     case CloseChartWindow:
         return QKeySequence("Ctrl+W");
-    case TimeFrame10s:
-        return QKeySequence();
     case TimeFrame1m:
         return QKeySequence("1");
     case TimeFrame5m:
@@ -207,8 +200,7 @@ QKeySequence ShortcutSettings::getDefaultShortcut(ShortcutId p_id) const
 
 void ShortcutSettings::migrateLegacyTimeFrameShortcuts(QSettings& p_settings)
 {
-    const QStringList names{"TimeFrame10s",
-                            "TimeFrame1m",
+    const QStringList names{"TimeFrame1m",
                             "TimeFrame5m",
                             "TimeFrame15m",
                             "TimeFrame30m",
@@ -221,7 +213,7 @@ void ShortcutSettings::migrateLegacyTimeFrameShortcuts(QSettings& p_settings)
     for (int i = 0; i < names.size(); ++i)
     {
         const QString key = QStringLiteral("Shortcuts/") + names[i];
-        const QString oldDefault = QString::number((i + 1) % 10);
+        const QString oldDefault = QString::number((i + 2) % 10);
         if (QKeySequence::fromString(p_settings.value(key, oldDefault).toString()) != QKeySequence(oldDefault))
         {
             legacyLayout = false;

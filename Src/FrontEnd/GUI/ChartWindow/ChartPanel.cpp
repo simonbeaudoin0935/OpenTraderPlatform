@@ -234,6 +234,7 @@ void ChartPanel::setSymbol(const QString& p_symbol)
 
 void ChartPanel::setTimeFrame(TimeFrame p_tf)
 {
+    p_tf = normalizeDisplayTimeFrame(p_tf);
     if (p_tf == m_currentTimeFrame)
         return;
 

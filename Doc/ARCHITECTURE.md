@@ -312,7 +312,7 @@ QTimer* m_balancePollingTimer;
 - Sequential processing per symbol, parallel across symbols
 - Bar cache with SQLite persistence
 - Level 2 reception via `Level2Receiver`
-- Live bar accumulation (1-minute and 10-second intervals)
+- Live bar accumulation (1-minute interval)
 
 **Actor Pattern**:
 ```cpp

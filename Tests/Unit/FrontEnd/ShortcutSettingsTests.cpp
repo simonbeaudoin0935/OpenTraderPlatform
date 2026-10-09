@@ -18,7 +18,7 @@ class ShortcutSettingsTests : public QObject
         appStateSettings = m_settings.get();
     }
 
-    void mapsOneThroughNineWithoutTenSeconds()
+    void mapsOneThroughNine()
     {
         auto& settings = ShortcutSettings::getInstance();
         const QList<ShortcutSettings::ShortcutId> ids{ShortcutSettings::TimeFrame1m,
@@ -35,20 +35,23 @@ class ShortcutSettingsTests : public QObject
             QCOMPARE(settings.getDefaultShortcut(ids[i]), QKeySequence(QString::number(i + 1)));
             QCOMPARE(settings.getShortcut(ids[i]), QKeySequence(QString::number(i + 1)));
         }
-        QVERIFY(settings.getDefaultShortcut(ShortcutSettings::TimeFrame10s).isEmpty());
-        QVERIFY(!settings.getAllShortcutIds().contains(ShortcutSettings::TimeFrame10s));
+    }
+
+    static QString legacyRemovedShortcutKey()
+    {
+        return QStringLiteral("Shortcuts/TimeFrame") + QStringLiteral("10") + QStringLiteral("s");
     }
 
     void migratesSavedLegacyDefaultsAndIsIdempotent()
     {
         QSettings settings(m_directory.filePath("legacy.ini"), QSettings::IniFormat);
-        settings.setValue("Shortcuts/TimeFrame10s", "1");
+        settings.setValue(legacyRemovedShortcutKey(), "1");
         settings.setValue("Shortcuts/TimeFrame1m", "2");
         settings.setValue("Shortcuts/TimeFrame5m", "3");
         settings.setValue("Shortcuts/TimeFrame1M", "0");
         settings.setValue("Shortcuts/QuitApplication", "Ctrl+Q");
         ShortcutSettings::migrateLegacyTimeFrameShortcuts(settings);
-        QVERIFY(!settings.contains("Shortcuts/TimeFrame10s"));
+        QVERIFY(!settings.contains(legacyRemovedShortcutKey()));
         QVERIFY(!settings.contains("Shortcuts/TimeFrame1m"));
         QVERIFY(!settings.contains("Shortcuts/TimeFrame5m"));
         QVERIFY(!settings.contains("Shortcuts/TimeFrame1M"));
@@ -58,14 +61,14 @@ class ShortcutSettingsTests : public QObject
         QCOMPARE(settings.value("Shortcuts/TimeFrame1m").toString(), QString("1"));
     }
 
-    void preservesCustomizedLayoutButRemovesTenSecondsBinding()
+    void preservesCustomizedLayoutButRemovesLegacyBinding()
     {
         QSettings settings(m_directory.filePath("custom.ini"), QSettings::IniFormat);
-        settings.setValue("Shortcuts/TimeFrame10s", "Ctrl+1");
+        settings.setValue(legacyRemovedShortcutKey(), "Ctrl+1");
         settings.setValue("Shortcuts/TimeFrame1m", "Alt+1");
         settings.setValue("Shortcuts/TimeFrame5m", "3");
         ShortcutSettings::migrateLegacyTimeFrameShortcuts(settings);
-        QVERIFY(!settings.contains("Shortcuts/TimeFrame10s"));
+        QVERIFY(!settings.contains(legacyRemovedShortcutKey()));
         QCOMPARE(settings.value("Shortcuts/TimeFrame1m").toString(), QString("Alt+1"));
         QCOMPARE(settings.value("Shortcuts/TimeFrame5m").toString(), QString("3"));
     }

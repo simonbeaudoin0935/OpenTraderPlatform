@@ -237,8 +237,7 @@ class SymbolContext : public QObject
     LiveStreamRetryState m_barStreamRetry;
     LiveStreamRetryState m_depthStreamRetry;
     LiveStreamRetryState m_quoteStreamRetry;
-    LiveBarAccumulator m_liveBarAccumulator;    ///< 1-minute bar accumulator (default 60s interval)
-    LiveBarAccumulator m_live10sBarAccumulator; ///< 10-second bar accumulator
+    LiveBarAccumulator m_liveBarAccumulator; ///< 1-minute bar accumulator (default 60s interval)
     BarAggregator m_barAggregator;
     bool m_liveCurrentDayHistoryPrefetchIssued = false;
 

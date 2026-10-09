@@ -1080,7 +1080,6 @@ GUIFrontend::GUIFrontend(MainAlgo* p_mainAlgo, QObject* parent) : QObject(parent
 
     // Sync m_currentTimeFrame from the toolbar which already restored its state from AppState
     m_currentTimeFrame = ui->priceChart->toolbar()->getCurrentTimeFrame();
-    updateTenSecondTimeFrameAvailability();
     // Scale candlestick widths to match the restored timescale (1m default if nothing was saved)
     ui->priceChart->setDisplayTimeFrame(m_currentTimeFrame);
 
@@ -4419,9 +4418,6 @@ void GUIFrontend::onShortcutChanged(ShortcutSettings::ShortcutId p_id, const QKe
         qInfo() << "Updated toggle replay mode shortcut to:" << p_newSequence.toString();
         break;
 
-    case ShortcutSettings::TimeFrame10s:
-        break;
-
     case ShortcutSettings::TimeFrame1m:
         Q_CHECK_PTR(m_timeFrame1mShortcut);
         m_timeFrame1mShortcut->setKey(p_newSequence);
@@ -4892,12 +4888,6 @@ void GUIFrontend::requestMissingBarsFromCache(const QString& p_symbol,
 
 void GUIFrontend::onTimeFrameChanged(TimeFrame tf)
 {
-    if (tf == TimeFrame::TEN_SECONDS && !MainApp::isInReplayMode())
-    {
-        ui->priceChart->toolbar()->setCurrentTimeFrame(TimeFrame::ONE_MINUTE);
-        return;
-    }
-
     if (tf == m_currentTimeFrame)
         return;
 
@@ -4920,12 +4910,6 @@ void GUIFrontend::onTimeFrameChanged(TimeFrame tf)
     ui->priceChart->setDisplayTimeFrame(tf);
     ui->priceChart->preserveCurrentRanges();
     ui->priceChart->clearChart();
-}
-
-void GUIFrontend::updateTenSecondTimeFrameAvailability()
-{
-    const bool allowTenSecond = MainApp::isInReplayMode();
-    ui->priceChart->toolbar()->setTenSecondTimeFrameEnabled(allowTenSecond);
 }
 
 QString GUIFrontend::formatAccountInfo(const Account& account) const
@@ -5148,7 +5132,6 @@ void GUIFrontend::onReplayModeEntered()
 
     // Update chart visual (background color and watermark)
     ui->priceChart->setReplayModeActive(true);
-    updateTenSecondTimeFrameAvailability();
 
     const bool explicitEmptyReplaySymbol = !m_pendingReplayEntrySymbol.isNull() && m_pendingReplayEntrySymbol.isEmpty();
     if (explicitEmptyReplaySymbol)
@@ -5315,7 +5298,6 @@ void GUIFrontend::onReplayModeExited()
 
     // Restore chart visual
     ui->priceChart->setReplayModeActive(false);
-    updateTenSecondTimeFrameAvailability();
 
     if (ui->priceChart->getCurrentSymbol().isEmpty() && !m_preReplayDisplayedSymbol.isEmpty())
     {
@@ -5361,7 +5343,6 @@ void GUIFrontend::onReviewModeEntered()
     ui->strategyQuickView->setReviewModeEnabled(true);
 
     loadReviewSessionIntoWidgets();
-    updateTenSecondTimeFrameAvailability();
     updateSessionLabel();
     updateTimeDisplay();
 }
@@ -5387,7 +5368,6 @@ void GUIFrontend::onReviewModeExited()
     ui->level2Widget->clearData();
     ui->timeAndSalesWidget->clearData();
 
-    updateTenSecondTimeFrameAvailability();
     updateSessionLabel();
     updateTimeDisplay();
 }
@@ -5401,7 +5381,6 @@ void GUIFrontend::onTradingModeConfigured(const TradingMode p_mode)
 
     m_tradingModeBar->setActiveMode(p_mode == TradingMode::Sim ? TradingModeBar::Mode::Sim
                                                                : TradingModeBar::Mode::Live);
-    updateTenSecondTimeFrameAvailability();
 }
 
 bool GUIFrontend::eventFilter(QObject* p_watched, QEvent* p_event)

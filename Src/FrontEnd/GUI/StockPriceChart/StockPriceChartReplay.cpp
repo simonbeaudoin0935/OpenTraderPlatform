@@ -242,11 +242,6 @@ void StockPriceChart::setReplayModeActive(bool active)
     m_historyRequestRejected = false;
     m_nextHistoryRetryTime = {};
     m_historyRetryDelayMs = StreamConstants::LIVE_RETRY_INITIAL_DELAY_MS;
-    if (chartToolbar != nullptr)
-    {
-        chartToolbar->setTenSecondTimeFrameEnabled(active);
-    }
-
     // Update background color
     QColor bgColor = active ? REPLAY_BACKGROUND_COLOR : NORMAL_BACKGROUND_COLOR;
     m_customPlot->setBackground(QBrush(bgColor));
@@ -311,7 +306,6 @@ void StockPriceChart::updateCurrentTimeLine()
     }
 
     // Convert to fractional chart index position using the active X-axis slot size.
-    // 10s charts use 10-second slots; all higher intraday frames use minute slots.
     const double currentIndex = secondsDiff / chartSecondsPerIndexUnit(m_displayTimeFrame);
 
     // No offset needed - candles are drawn with their left edge at bar open time,

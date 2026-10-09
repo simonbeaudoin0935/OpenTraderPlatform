@@ -731,7 +731,6 @@ StockPriceChart::StockPriceChart(QWidget* parent) : QWidget(parent)
     // Create and add the timeframe selector at the top
     chartToolbar = new ChartToolbar(this);
     Q_CHECK_PTR(chartToolbar);
-    chartToolbar->setTenSecondTimeFrameEnabled(MainApp::isInReplayMode());
     layout->addWidget(chartToolbar,
                       0); // 0 stretch - keep minimal size
 
@@ -989,7 +988,7 @@ StockPriceChart::StockPriceChart(QWidget* parent) : QWidget(parent)
     if (!autoEnabled)
     {
         const int savedTf = appStateSettings->value("Chart/TimeFrame", static_cast<int>(TimeFrame::ONE_MINUTE)).toInt();
-        chartToolbar->setCurrentTimeFrame(static_cast<TimeFrame>(savedTf));
+        chartToolbar->setCurrentTimeFrame(normalizeDisplayTimeFrame(static_cast<TimeFrame>(savedTf)));
     }
 
     // Connect axis range change signals
@@ -1640,7 +1639,7 @@ void StockPriceChart::updateLowerPaneLayout()
 
 double StockPriceChart::chartIndexUnitsPerBar(TimeFrame p_tf)
 {
-    return (p_tf == TimeFrame::TEN_SECONDS) ? 1.0 : static_cast<double>(BarUtils::minutesPerBar(p_tf));
+    return static_cast<double>(BarUtils::minutesPerBar(p_tf));
 }
 
 double StockPriceChart::chartIndexKeyOffset(TimeFrame p_tf)
@@ -1648,9 +1647,9 @@ double StockPriceChart::chartIndexKeyOffset(TimeFrame p_tf)
     return chartIndexUnitsPerBar(p_tf) / 2.0;
 }
 
-double StockPriceChart::chartSecondsPerIndexUnit(TimeFrame p_tf)
+double StockPriceChart::chartSecondsPerIndexUnit(TimeFrame)
 {
-    return (p_tf == TimeFrame::TEN_SECONDS) ? 10.0 : 60.0;
+    return 60.0;
 }
 
 void StockPriceChart::preserveCurrentRanges()
