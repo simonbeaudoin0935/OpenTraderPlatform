@@ -307,14 +307,23 @@ connect(&TSClient::getInstance(), &TSClient::authStateChanged,
 
 ## Error Handling
 
-### Request Timeouts
+### Request Timeouts and Stalled HTTP/2 Connections
 
-Default timeout: 30 seconds per request
-Timeout handler automatically:
-1. Removes request from tracking
-2. Invokes callback with `success = false`
-3. Logs warning with request type
-4. Cleans up QNetworkReply
+All TradeStation traffic from one `AuthenticatedNetworkAccessManager` is multiplexed over a single
+HTTP/2 connection. After some server `GoAway` frames, that connection can keep serving established
+streams while never answering new requests (every reconnect/REST call hangs). The manager watches each
+real reply (`TSClientNetworkConstants` in `CONSTANTS.h`):
+
+- **Streams** (requests built with `buildStreamRequest()`): no headers/bytes within
+  `STREAM_FIRST_RESPONSE_TIMEOUT_MS` (8 s, below the 10 s `Stream` heartbeat) → `connectionStalled()`.
+  The stream itself is not aborted; its heartbeat timeout handles that and the owner retries.
+- **REST** (requests built with `buildNetworkRequest()`): no progress for `REST_TRANSFER_TIMEOUT_MS`
+  (20 s) → the reply is aborted (`OperationCanceledError`), and `connectionStalled()` is emitted if no
+  response was ever received.
+
+`TSClient::onNetworkConnectionStalled()` replaces the active manager with a fresh one (fresh connection)
+and `retire()`s the stalled one, which deletes itself once its last reply is destroyed. Stalls reported
+by already-retired managers are ignored. Always use `buildStreamRequest()` for long-lived streams.
 
 ### Network Errors
 

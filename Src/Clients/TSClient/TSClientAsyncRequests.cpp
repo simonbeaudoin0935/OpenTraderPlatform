@@ -428,8 +428,7 @@ QFuture<std::expected<QVector<Account>, TSClient::Error>> TSClient::getAccounts(
             }
 
             // Use mock network manager in replay mode for simulated account
-            QNetworkAccessManager* manager =
-                (m_mode == Mode::Replay && m_mockNetworkManager) ? m_mockNetworkManager : m_networkManager;
+            QNetworkAccessManager* manager = activeNetworkManager();
             if (manager == nullptr)
             {
                 CRITICAL << "getAccounts(): Network manager unavailable";
@@ -587,8 +586,7 @@ QFuture<std::expected<QVector<Balance>, TSClient::Error>> TSClient::getBalances(
         [this, account, promise = std::move(promise)]() mutable
         {
             // Use mock network manager in replay mode for simulated balance
-            QNetworkAccessManager* manager =
-                (m_mode == Mode::Replay && m_mockNetworkManager) ? m_mockNetworkManager : m_networkManager;
+            QNetworkAccessManager* manager = activeNetworkManager();
 
             QNetworkReply* reply =
                 manager->get(buildNetworkRequest(QString(TSClientEndpoints::GET_BALANCES).arg(account)));
@@ -710,8 +708,7 @@ QFuture<std::expected<QVector<OrderRoute>, TSClient::Error>> TSClient::getOrderR
                 return;
             }
 
-            QNetworkAccessManager* manager =
-                (m_mode == Mode::Replay && m_mockNetworkManager) ? m_mockNetworkManager : m_networkManager;
+            QNetworkAccessManager* manager = activeNetworkManager();
             if (manager == nullptr)
             {
                 CRITICAL << "getOrderRoutes(): Network manager unavailable";
@@ -848,8 +845,7 @@ QFuture<std::expected<PlaceOrderResult, TSClient::Error>> TSClient::placeOrder(c
         [this, request = std::move(request), postData = std::move(postData), promise = std::move(promise)]() mutable
         {
             // Use mock network manager in replay mode for order emulation
-            QNetworkAccessManager* manager =
-                (m_mode == Mode::Replay && m_mockNetworkManager) ? m_mockNetworkManager : m_networkManager;
+            QNetworkAccessManager* manager = activeNetworkManager();
 
             QNetworkReply* reply = manager->post(request, postData);
             Q_CHECK_PTR(reply);
@@ -988,8 +984,7 @@ QFuture<std::expected<CancelOrderResult, TSClient::Error>> TSClient::cancelOrder
         [this, request = std::move(request), promise = std::move(promise)]() mutable
         {
             // Use mock network manager in replay mode for order emulation
-            QNetworkAccessManager* manager =
-                (m_mode == Mode::Replay && m_mockNetworkManager) ? m_mockNetworkManager : m_networkManager;
+            QNetworkAccessManager* manager = activeNetworkManager();
 
             QNetworkReply* reply = manager->deleteResource(request);
             Q_CHECK_PTR(reply);

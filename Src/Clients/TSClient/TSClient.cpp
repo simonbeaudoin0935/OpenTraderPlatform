@@ -16,6 +16,7 @@
 #include "ThreadNames.h"
 #include "SecureStorage.h"
 #include "AuthenticatedNetworkAccessManager.h"
+#include "Stream/MockNetworkAccessManager.h"
 
 #define LOGGING_CATEGORY TSClientLog
 
@@ -61,8 +62,8 @@ TSClient::~TSClient()
             const QObjectList childrenList = children();
             for (QObject* child: childrenList)
             {
-                // Skip QNetworkAccessManager - delete it AFTER streams
-                if (child == m_networkManager)
+                // Skip TradeStation managers (active and retired) - delete them AFTER streams
+                if (qobject_cast<AuthenticatedNetworkAccessManager*>(child) != nullptr)
                     continue;
 
                 child->deleteLater(); // Schedule Stream deletion
@@ -73,8 +74,18 @@ TSClient::~TSClient()
     // Process events to delete Streams (while QNetworkAccessManager still valid)
     QMetaObject::invokeMethod(this, []() { QCoreApplication::processEvents(); }, Qt::BlockingQueuedConnection);
 
-    // Now delete QNetworkAccessManager after all Streams are gone
-    QMetaObject::invokeMethod(this, [this]() { m_networkManager->deleteLater(); }, Qt::BlockingQueuedConnection);
+    // Now delete the QNetworkAccessManagers after all Streams are gone
+    QMetaObject::invokeMethod(
+        this,
+        [this]()
+        {
+            const auto managers = findChildren<AuthenticatedNetworkAccessManager*>(Qt::FindDirectChildrenOnly);
+            for (AuthenticatedNetworkAccessManager* manager: managers)
+            {
+                manager->deleteLater();
+            }
+        },
+        Qt::BlockingQueuedConnection);
 
     // Process final deleteLater
     QMetaObject::invokeMethod(this, []() { QCoreApplication::processEvents(); }, Qt::BlockingQueuedConnection);
@@ -91,28 +102,7 @@ TSClient::~TSClient()
     }
 }
 
-TSClient::TSClient()
-    : m_authenticated(false)
-    , m_refreshInProgress(false)
-    , m_networkManager(new AuthenticatedNetworkAccessManager(
-          [this](const QNetworkRequest& p_request)
-          {
-              if (p_request.url() == buildRefreshTokenRequest().url())
-              {
-                  return m_clientToken.isValid() && m_authToken.isValid() && !m_authInProgress;
-              }
-              const bool authorized =
-                  m_authenticated && !m_apiKey.isEmpty() && m_authToken.isValid() && !m_authToken.isExpired();
-              if (!authorized && m_authenticated)
-              {
-                  m_authenticated = false;
-                  emit authStateChanged(false,
-                                        AuthStateReason::Connecting,
-                                        "TradeStation requests paused pending authentication or token refresh");
-              }
-              return authorized;
-          },
-          this))
+TSClient::TSClient() : m_authenticated(false), m_refreshInProgress(false), m_networkManager(createNetworkManager())
 {
     m_thread.setObjectName("TSClientThread");
     this->moveToThread(&m_thread);
@@ -218,6 +208,82 @@ void TSClient::scheduleNextRefreshFromCurrentToken(const char* p_context)
 
     qCDebug(TSClientLog) << p_context << ": scheduling next refresh in " << secondsToNextRefreshRequest << " seconds";
     QTimer::singleShot(1000 * secondsToNextRefreshRequest, this, [this]() { refreshAccessToken(); });
+}
+
+AuthenticatedNetworkAccessManager* TSClient::createNetworkManager()
+{
+    auto* manager = new AuthenticatedNetworkAccessManager(
+        [this](const QNetworkRequest& p_request)
+        {
+            if (p_request.url() == buildRefreshTokenRequest().url())
+            {
+                return m_clientToken.isValid() && m_authToken.isValid() && !m_authInProgress;
+            }
+            const bool authorized =
+                m_authenticated && !m_apiKey.isEmpty() && m_authToken.isValid() && !m_authToken.isExpired();
+            if (!authorized && m_authenticated)
+            {
+                m_authenticated = false;
+                emit authStateChanged(false,
+                                      AuthStateReason::Connecting,
+                                      "TradeStation requests paused pending authentication or token refresh");
+            }
+            return authorized;
+        },
+        this);
+    Q_CHECK_PTR(manager);
+
+    const auto c = connect(manager,
+                           &AuthenticatedNetworkAccessManager::connectionStalled,
+                           this,
+                           &TSClient::onNetworkConnectionStalled);
+    OBJ_ASSUME_TRUE(c);
+
+    return manager;
+}
+
+QNetworkAccessManager* TSClient::activeNetworkManager() const
+{
+    if (m_mode == Mode::Replay && m_mockNetworkManager != nullptr)
+    {
+        return m_mockNetworkManager;
+    }
+    return m_networkManager;
+}
+
+/*
+ * All TradeStation requests share one HTTP/2 connection per QNetworkAccessManager. After some server
+ * GOAWAY frames, that connection keeps serving established streams but never answers new requests,
+ * so every reconnect/REST call hangs. Qt cannot open a second connection to the same host from the same
+ * manager, so new traffic is moved to a fresh manager (fresh connection); the old one is retired and
+ * deletes itself once the streams still using it are gone.
+ */
+void TSClient::onNetworkConnectionStalled(const QString& p_description)
+{
+    OBJ_ASSUME_EQUAL(QThread::currentThread(), this->thread());
+
+    auto* const reporter = qobject_cast<AuthenticatedNetworkAccessManager*>(sender());
+    OBJ_ASSUME_DIFF(reporter, nullptr);
+
+    // Stalls reported by an already-retired manager were handled when it was retired
+    if (reporter != m_networkManager || m_shuttingDown.load(std::memory_order_acquire))
+    {
+        return;
+    }
+
+    CRITICAL << "TradeStation HTTP/2 connection stalled (" << p_description
+             << "); moving new requests to a fresh connection";
+
+    AuthenticatedNetworkAccessManager* const stalledManager = m_networkManager;
+    m_networkManager = createNetworkManager();
+    stalledManager->retire();
+}
+
+QNetworkRequest TSClient::buildStreamRequest(const QString& endpoint, const QUrlQuery& query) const
+{
+    QNetworkRequest request = buildNetworkRequest(endpoint, query);
+    request.setAttribute(AuthenticatedNetworkAccessManager::StreamingRequestAttribute, true);
+    return request;
 }
 
 QNetworkRequest TSClient::buildNetworkRequest(const QString& endpoint, const QUrlQuery& query) const

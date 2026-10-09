@@ -39,6 +39,7 @@
 #include "CONSTANTS.h"
 
 #include "GUIAuthHandler.h"
+#include "AuthenticatedNetworkAccessManager.h"
 
 Q_DECLARE_LOGGING_CATEGORY(TSClientLog)
 
@@ -386,6 +387,13 @@ class TSClient final : public QObject
     void processNewAmountOfDataReceived(size_t bytesReceived);
     [[nodiscard]] QNetworkRequest buildNetworkRequest(const QString& endpoint,
                                                       const QUrlQuery& query = QUrlQuery()) const;
+    // Same as buildNetworkRequest, flagged as a long-lived stream (no REST transfer timeout)
+    [[nodiscard]] QNetworkRequest buildStreamRequest(const QString& endpoint,
+                                                     const QUrlQuery& query = QUrlQuery()) const;
+    [[nodiscard]] AuthenticatedNetworkAccessManager* createNetworkManager();
+    // Mock manager in replay mode (when available), otherwise the active TradeStation manager
+    [[nodiscard]] QNetworkAccessManager* activeNetworkManager() const;
+    void onNetworkConnectionStalled(const QString& p_description);
     void scheduleNextRefreshFromCurrentToken(const char* p_context);
     void loadStartupCredentials();
 
@@ -410,7 +418,8 @@ class TSClient final : public QObject
     qsizetype m_totalDataReceivedBytes = 0;
     QString m_apiKey;
     QThread m_thread;
-    QNetworkAccessManager* m_networkManager;
+    // Active manager for new requests; replaced when its HTTP/2 connection stalls
+    AuthenticatedNetworkAccessManager* m_networkManager = nullptr;
 
     // Replay mode support
     Mode m_mode = Mode::Live;

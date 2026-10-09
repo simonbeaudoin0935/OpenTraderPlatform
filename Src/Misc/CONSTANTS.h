@@ -151,6 +151,26 @@ namespace TSClientHosts
 } // namespace TSClientHosts
 
 /**
+ * @namespace TSClientNetworkConstants
+ * @brief Watchdogs used to detect a wedged TradeStation HTTP/2 connection
+ *
+ * All TradeStation traffic is multiplexed over one HTTP/2 connection per QNetworkAccessManager.
+ * When that connection stops answering new requests (observed after server GOAWAY frames), every
+ * new stream/REST call hangs while already-established streams keep flowing. These timeouts detect
+ * that state so TSClient can move new traffic onto a fresh connection.
+ */
+namespace TSClientNetworkConstants
+{
+    // A new stream that has not received response headers or bytes within this delay is considered
+    // stalled. Must stay below the Stream heartbeat timeout (10 s) so new traffic is moved to a fresh
+    // connection before the stream's own retry is attempted.
+    inline constexpr int STREAM_FIRST_RESPONSE_TIMEOUT_MS = 8000;
+
+    // REST requests are aborted after this delay without any upload/download progress.
+    inline constexpr int REST_TRANSFER_TIMEOUT_MS = 20000;
+} // namespace TSClientNetworkConstants
+
+/**
  * @namespace TSClientEndpoints
  * @brief TradeStation API endpoint constants
  *

@@ -66,7 +66,8 @@ void Stream::onReplyFinished()
     disconnect(m_networkReply, &QNetworkReply::finished, this, &Stream::onReplyFinished);
 
     // HTTP errors may leave their final JSON body unread, without a trailing newline.
-    const QByteArray remainingData = m_networkReply->readAll();
+    // Aborted replies (heartbeat timeout) are already closed and have nothing left to read.
+    const QByteArray remainingData = m_networkReply->isReadable() ? m_networkReply->readAll() : QByteArray();
     if (!remainingData.isEmpty())
     {
         emit newAmountOfDataReceived(remainingData.size());
