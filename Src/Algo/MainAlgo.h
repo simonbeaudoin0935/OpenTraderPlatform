@@ -29,6 +29,7 @@
 #include "TimeFrame.h"
 #include "Balance.h"
 #include "BarAggregator/BarAggregator.h"
+#include "TapeReconstructor/BarTapeReconstructor.h"
 #include "Level2.h"
 #include "Trade.h"
 #include "LiveBarAccumulator.h"
@@ -214,6 +215,12 @@ class SymbolContext : public QObject
     /// @brief Enqueue a 1m bar from the TradeStation bar stream (thread-safe, called from any thread)
     void enqueueBar(const Bar& p_bar);
 
+    /// @brief Enqueue the quote-stream best bid/offer used to classify reconstructed prints (thread-safe)
+    void enqueueQuoteBbo(const BarTapeReconstructor::Bbo& p_bbo);
+
+    /// @brief Make the next bar-stream update a tape baseline, e.g. after the bar stream reopens (thread-safe)
+    void enqueueTapeReset();
+
     /// @brief Returns true while this symbol still has queued or currently draining replay work.
     [[nodiscard]] bool hasReplayBacklog() const
     {
@@ -268,13 +275,23 @@ class SymbolContext : public QObject
     void receivedNewTrade(const QString& p_symbol, const Trade& p_trade);
 
   private:
-    using WorkItem = std::variant<Level2, Trade, Bar>;
+    struct TapeReset
+    {
+    };
+    using WorkItem = std::variant<Level2, Trade, Bar, BarTapeReconstructor::Bbo, TapeReset>;
 
     void enqueueWorkItem(WorkItem&& p_item, const char* p_kind);
     void drain();
     void processLevel2(const Level2& p_level2);
     void processTrade(const Trade& p_trade);
     void processBar(const Bar& p_bar);
+    [[nodiscard]] std::optional<BarTapeReconstructor::Bbo> currentTapeBbo() const;
+
+    /// Live/sim Time & Sales rebuilt from bar-stream volume deltas. Drain-thread only.
+    BarTapeReconstructor m_tapeReconstructor;
+    std::optional<BarTapeReconstructor::Bbo> m_level2Bbo;
+    qint64 m_level2BboReceivedMs = 0;
+    std::optional<BarTapeReconstructor::Bbo> m_quoteBbo;
 
     QMutex m_queueMutex;
     QQueue<WorkItem> m_queue;
@@ -736,13 +753,6 @@ class MainAlgo final : public QObject
     Account m_activeAccount;
     Balance m_currentBalance;
     QMap<QString, Position> m_currentPositions; // positionID -> latest non-historical position snapshot
-    struct QuoteTradeFingerprint
-    {
-        QDateTime timestamp;
-        double price = 0.0;
-        unsigned int size = 0;
-    };
-    QHash<QString, QuoteTradeFingerprint> m_lastQuoteTradeBySymbol;
 
     std::unique_ptr<QTimer> m_balancePollingTimer;
 

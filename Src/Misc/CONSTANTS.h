@@ -725,6 +725,19 @@ namespace QuoteConstants
 } // namespace QuoteConstants
 
 /**
+ * @brief Synthetic Time & Sales reconstruction from live bar-stream volume deltas.
+ */
+namespace TapeReconstructionConstants
+{
+    /// Bar prices are floats; round prints to 1/10000 to undo float noise (e.g. 0.17589999).
+    constexpr double PRICE_ROUNDING_FACTOR = 10000.0;
+    /// Tolerance when comparing a print price to the bid/ask.
+    constexpr double PRICE_COMPARE_EPSILON = 1e-6;
+    /// Level 2 best bid/ask older than this is considered stale; the quote-stream BBO is used instead.
+    constexpr qint64 LEVEL2_BBO_MAX_AGE_MS = 5000;
+} // namespace TapeReconstructionConstants
+
+/**
  * @namespace MarketCalendar
  * @brief NYSE market holiday calendar for 2026.
  *

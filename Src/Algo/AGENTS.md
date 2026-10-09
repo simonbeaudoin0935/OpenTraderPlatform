@@ -366,7 +366,17 @@ connect(&m_barAggregator, &BarAggregator::barClosed,
 
 `BarReceiver` publishes exactly one source of 1m bars per mode:
 - **Replay**: `DBClient::newTrade` → `MainAlgo::routeTrade` → `SymbolContext::enqueueTrade()` → `LiveBarAccumulator::onNewTrade()` (drain loop) → `BarReceiver`.
-- **Live/Sim**: TradeStation bar stream → `MainAlgo::routeBar` → `SymbolContext::enqueueBar()` → `processBar()` (drain loop) → `BarReceiver` and `BarAggregator` (Closed → `onNewBar`, Open → `onBarUpdated`). Quote-derived synthetic trades (`MainAlgo::routeQuote`) still feed Time & Sales, but **not** the 1m accumulator: they only sample the latest print, so a second quote-built 1m bar would fight the real one (lower volume, different close) and make the live candle jitter.
+- **Live/Sim**: TradeStation bar stream → `MainAlgo::routeBar` → `SymbolContext::enqueueBar()` → `processBar()` (drain loop) → `BarReceiver` and `BarAggregator` (Closed → `onNewBar`, Open → `onBarUpdated`). Live trades are **not** fed into the 1m accumulator (they are derived from this same bar stream, so they would build a duplicate candle).
+
+### Live/Sim Time & Sales Reconstruction (`TapeReconstructor/BarTapeReconstructor`)
+
+TradeStation exposes no trade tape, so live/sim Time & Sales is rebuilt from the bar stream:
+
+- `SymbolContext::processBar` feeds each 1m update to `BarTapeReconstructor::onBar`. The `TotalVolume` delta versus the previous update becomes one print (size = delta, price = bar close, timestamp = receive time); a new minute prints that bar's whole volume. The print then goes through `processTrade` (Time & Sales snapshot, `receivedNewTrade` for strategies).
+- The first update, and the first update after the bar stream reopens (`enqueueTapeReset`), is only a baseline. Updates for an older minute or with non-increasing volume are ignored (TradeStation re-sends stale bars around rollover).
+- Side: close ≥ ask → `TradeSide::Bid` (buy aggressor), close ≤ bid → `TradeSide::Ask`, else `None` (same convention as Databento). The BBO comes from the latest Level 2 top of book while it is fresher than `TapeReconstructionConstants::LEVEL2_BBO_MAX_AGE_MS`, otherwise from the quote stream (`MainAlgo::routeQuote` → `enqueueQuoteBbo`). The quote stream no longer produces trades.
+- Limitations: each print batches every trade between two bar updates (~0.25–3 s), intermediate prices are lost, and BBO timing skew can mislabel some prints.
+- Replay is unchanged: real Databento trades drive Time & Sales.
 
 ```cpp
 class BarReceiver : public StreamReceiver {

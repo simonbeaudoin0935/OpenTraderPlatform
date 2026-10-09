@@ -13,3 +13,10 @@ payloads as well as emission counts. Do not treat holiday handling, missing
 session-end bars, late/duplicate bars, or partial-start alignment as tested
 contracts: these require reviewing intended behavior before adding assertions.
 The historical/live parity fixture is in the MarketData suite.
+
+[BarTapeReconstructorTests.cpp](BarTapeReconstructorTests.cpp) drives
+`BarTapeReconstructor::onBar` directly with fixed 1m bars and a BBO. Coverage:
+first update is baseline only; volume delta becomes one print priced at the
+close; unchanged/shrinking volume and older-minute bars are ignored; Closed
+update prints the remaining volume; new minute prints the whole bar volume;
+`reset()` restores baseline behaviour; bid/ask side classification.
