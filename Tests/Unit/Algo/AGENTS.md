@@ -1,5 +1,10 @@
 # Algorithm unit scenarios
 
+[StreamRecoveryTests.cpp](StreamRecoveryTests.cpp) covers the 15-second
+brokerage recovery deadline: repeated failures do not extend it, snapshot
+completion cancels it, expiry reports one CRIT per outage, and intentional stop
+cancels it. The expiry test accelerates the timer, not the production threshold.
+
 [BarAggregatorTests.cpp](BarAggregatorTests.cpp) feeds the public BarAggregator
 slots and observes `barUpdated`/`barClosed` signals with QSignalSpy.
 

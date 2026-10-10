@@ -233,6 +233,8 @@ namespace StreamConstants
     // Should be less than the stream heartbeat timeout (ten seconds)
     inline constexpr int MOCK_HEARTBEAT_INTERVAL_MS = 5000;
     inline constexpr int LIVE_RETRY_INITIAL_DELAY_MS = 1000;
+    inline constexpr int BROKERAGE_RETRY_DELAY_MS = 300;
+    inline constexpr int BROKERAGE_RECOVERY_TIMEOUT_MS = 15000;
     inline constexpr int LIVE_RETRY_MAX_DELAY_MS = 30000;
 } // namespace StreamConstants
 

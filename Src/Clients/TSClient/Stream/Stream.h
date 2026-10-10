@@ -26,7 +26,7 @@ class Stream : public QObject
      */
     enum class StreamError : quint8
     {
-        NoError, ///< Not an error - used internally to indicate no error condition. Never emitted in streamClosed signal.
+        NoError, ///< Reserved no-error value; unexpected stream EOF is reported as Failed.
 
         // Common
         Closed,  ///< Intentional close via TSClient::closeStream(). Not an error.

@@ -66,6 +66,7 @@ PositionsReceiver::PositionsReceiver(const QString& account, QObject* parent)
     }
     INFO << "Loaded" << m_loadedPositionsFromDatabase.size() << "positions from database";
 
+    connect(&m_streamRetryTimer, &QTimer::timeout, this, &PositionsReceiver::createPositionsStream);
     createPositionsStream();
 }
 
@@ -81,6 +82,7 @@ PositionsReceiver::~PositionsReceiver()
 void PositionsReceiver::stopStream(const QString& account)
 {
     Q_UNUSED(account);
+    stopRecovery();
     if (m_stream != nullptr)
     {
         TSClient::getInstance()->closeStream(m_stream);
@@ -96,10 +98,20 @@ void PositionsReceiver::stopStream(const char* account)
 
 void PositionsReceiver::createPositionsStream()
 {
+    if (m_streamStopped)
+    {
+        return;
+    }
     DEBUG << "Starting Positions stream for account " << m_account;
 
     m_stream = TSClient::getInstance()->openStreamPositions(m_account);
-    Q_CHECK_PTR(m_stream);
+    if (m_stream.isNull())
+    {
+        WARNING << "Could not open positions stream for account" << m_account << "- scheduling reconnect";
+        beginRecovery(QStringLiteral("Positions"), m_account);
+        m_streamRetryTimer.start();
+        return;
+    }
 
     connect(m_stream, &StreamPositions::newPositionReceived, this, &PositionsReceiver::onReceivedNewPosition);
     connect(m_stream, &StreamPositions::positionDeleted, this, &PositionsReceiver::onPositionDeleted);
@@ -110,13 +122,19 @@ void PositionsReceiver::createPositionsStream()
             this,
             [this](Stream::StreamError reason, QString message)
             {
+                if (m_streamStopped)
+                {
+                    return;
+                }
                 if (reason != Stream::StreamError::Closed)
                 {
-                    CRITICAL << "Positions stream for account" << m_account << "finished with error:" << message;
+                    WARNING << "Positions stream disconnected for account" << m_account << message
+                            << "- scheduling reconnect";
+                    beginRecovery(QStringLiteral("Positions"), m_account);
                     m_stream = nullptr;
                     m_receivedEndSnapshot = false;
                     m_snapshotPositionIds.clear();
-                    QTimer::singleShot(300, this, &PositionsReceiver::createPositionsStream);
+                    m_streamRetryTimer.start();
                 }
                 else
                 {
@@ -252,6 +270,7 @@ void PositionsReceiver::onPositionDeleted(QString positionID)
 
 void PositionsReceiver::onEndSnapshotReceived()
 {
+    completeRecovery();
     INFO << "Received EndSnapshot for Positions stream";
     m_receivedEndSnapshot = true;
 

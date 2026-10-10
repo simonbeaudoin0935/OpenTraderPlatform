@@ -31,6 +31,11 @@ target_link_libraries(BarAggregatorTests PRIVATE OpenTraderPlatformCommon Qt6::T
 add_test(NAME BarAggregatorTests COMMAND BarAggregatorTests)
 set_tests_properties(BarAggregatorTests PROPERTIES LABELS "unit")
 
+add_executable(StreamRecoveryTests Algo/StreamRecoveryTests.cpp)
+target_link_libraries(StreamRecoveryTests PRIVATE OpenTraderPlatformCommon Qt6::Test)
+add_test(NAME StreamRecoveryTests COMMAND StreamRecoveryTests)
+set_tests_properties(StreamRecoveryTests PROPERTIES LABELS "unit")
+
 add_executable(BarTapeReconstructorTests Algo/BarTapeReconstructorTests.cpp)
 target_link_libraries(BarTapeReconstructorTests PRIVATE OpenTraderPlatformCommon Qt6::Test)
 add_test(NAME BarTapeReconstructorTests COMMAND BarTapeReconstructorTests)

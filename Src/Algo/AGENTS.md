@@ -17,6 +17,12 @@ The Algo directory contains the trading algorithm coordination logic and various
 - `OrdersReceiver/` — Order tracking via StreamOrders
 - `StreamReceiver/` — Base class for all receivers
 
+Brokerage receivers log disconnects (including server `GoAway`) as WARN and
+retry after 300 ms. Recovery completes only on `EndSnapshot`; if it remains
+incomplete for 15 seconds, one CRIT is emitted for that outage while retries
+continue. Repeated disconnects do not restart this deadline. Intentional stop
+cancels both retry and recovery timers.
+
 ## MainAlgo (MainAlgo.h/cpp)
 
 **Role**: Central coordinator for all trading algorithm operations

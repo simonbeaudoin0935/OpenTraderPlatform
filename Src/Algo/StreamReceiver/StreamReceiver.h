@@ -2,6 +2,7 @@
 
 #include <QObject>
 #include <QPointer>
+#include <QTimer>
 
 #include "Stream.h"
 
@@ -15,7 +16,7 @@ class StreamReceiver : public QObject
 {
     Q_OBJECT
   public:
-    explicit StreamReceiver(QObject* parent = nullptr) : QObject(parent) {}
+    explicit StreamReceiver(QObject* parent = nullptr);
 
     /**
      * @brief Pause the stream's heartbeat timer
@@ -52,10 +53,21 @@ class StreamReceiver : public QObject
     }
 
   protected:
+    void beginRecovery(const QString& p_feed, const QString& p_account);
+    void completeRecovery();
+    void stopRecovery();
+    QTimer m_streamRetryTimer;
+    bool m_streamStopped = false;
     /**
      * @brief Get the underlying Stream object
      *
      * Derived classes must implement this to return their specific stream type.
      */
     [[nodiscard]] virtual QPointer<Stream> getStreamBase() const = 0;
+
+  private:
+    QTimer m_recoveryTimer;
+    QString m_recoveryFeed;
+    QString m_recoveryAccount;
+    bool m_recovering = false;
 };
