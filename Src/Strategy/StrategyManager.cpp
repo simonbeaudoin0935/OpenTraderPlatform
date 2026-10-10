@@ -1750,6 +1750,8 @@ void StrategyManager::persistStrategiesState()
     // Pass explicit size so QSettings IniFormat writes the correct "size=N" key.
     // Without it, Qt sets size to the last setArrayIndex() value (0-based) rather
     // than the element count, causing beginReadArray() to return 0 on next launch.
+    // Remove first so entries beyond the new size (and any legacy nested keys) don't linger.
+    strategiesStateSettings->remove("LoadedStrategies");
     strategiesStateSettings->beginWriteArray("LoadedStrategies", m_strategies.size());
     int index = 0;
     for (auto it = m_strategies.constBegin(); it != m_strategies.constEnd(); ++it)
@@ -1768,27 +1770,47 @@ void StrategyManager::persistStrategiesState()
     strategiesStateSettings->sync();
 }
 
-void StrategyManager::restoreStrategiesState()
+void StrategyManager::restoreStrategiesState(const bool p_resumeRunning)
 {
     assumeMainAlgoThread(m_mainAlgo);
     if (!strategiesStateSettings)
         return;
 
-    m_persistEnabled = true; // Re-enable so loadStrategy() calls below update the file
+    // Every caller restores right after stopAllStrategies() or at startup; restoring on top of loaded
+    // strategies would duplicate them.
+    ASSUME_TRUE(m_strategies.isEmpty());
 
-    int size = strategiesStateSettings->beginReadArray("LoadedStrategies");
-    qInfo(StrategyManagerLog) << "Restoring" << size << "strategies from StrategiesState.ini";
-
+    // Read the whole array before loading anything: loadStrategy() persists, and writing while the read
+    // array is still open nests the new array under "LoadedStrategies/<i>/".
+    struct PersistedStrategy
+    {
+        QString configJson;
+        bool wasRunning = false;
+    };
+    QVector<PersistedStrategy> persisted;
+    const int size = strategiesStateSettings->beginReadArray("LoadedStrategies");
     for (int i = 0; i < size; ++i)
     {
         strategiesStateSettings->setArrayIndex(i);
-        QString configJson = strategiesStateSettings->value("config").toString();
-        bool wasRunning = strategiesStateSettings->value("wasRunning", false).toBool();
+        persisted.append({strategiesStateSettings->value("config").toString(),
+                          strategiesStateSettings->value("wasRunning", false).toBool()});
+    }
+    strategiesStateSettings->endArray();
 
-        if (configJson.isEmpty())
+    qInfo(StrategyManagerLog) << "Restoring" << persisted.size() << "strategies from StrategiesState.ini"
+                              << (p_resumeRunning ? "(resuming running ones)" : "(load only)");
+
+    // Keep persistence off while loading so a partially restored list never overwrites the file; the
+    // full list is written once at the end.
+    m_persistEnabled = false;
+    QVector<std::pair<QString, bool>> restored; // strategyID, wasRunning
+    for (int i = 0; i < persisted.size(); ++i)
+    {
+        const PersistedStrategy& entry = persisted[i];
+        if (entry.configJson.isEmpty())
             continue;
 
-        QJsonDocument doc = QJsonDocument::fromJson(configJson.toUtf8());
+        QJsonDocument doc = QJsonDocument::fromJson(entry.configJson.toUtf8());
         if (doc.isNull() || !doc.isObject())
         {
             qWarning(StrategyManagerLog) << "Invalid config JSON in StrategiesState.ini at index" << i << ", skipping";
@@ -1802,28 +1824,35 @@ void StrategyManager::restoreStrategiesState()
             qWarning(StrategyManagerLog) << "Failed to restore strategy:" << config.name << "-" << result.error();
             continue;
         }
+        restored.append({result.value(), entry.wasRunning});
+    }
+    m_persistEnabled = true;
+    persistStrategiesState();
 
-        if (wasRunning)
+    if (!p_resumeRunning)
+        return;
+
+    for (const auto& [strategyID, wasRunning]: restored)
+    {
+        if (!wasRunning)
+            continue;
+
+        QString error;
+        if (MainApp::isInReplayMode() && !MainApp::getInstance()->hasReplayPlaybackStarted())
         {
-            QString error;
-            if (MainApp::isInReplayMode() && !MainApp::getInstance()->hasReplayPlaybackStarted())
-            {
-                auto* restoredInstance = findStrategy(result.value());
-                ASSUME_DIFF(restoredInstance, nullptr);
-                error = queueStrategyStart(restoredInstance);
-            }
-            else
-            {
-                error = startStrategy(result.value());
-            }
-            if (!error.isEmpty())
-            {
-                qWarning(StrategyManagerLog)
-                    << "Failed to auto-start restored strategy:" << config.name << "-" << error;
-            }
+            auto* restoredInstance = findStrategy(strategyID);
+            ASSUME_DIFF(restoredInstance, nullptr);
+            error = queueStrategyStart(restoredInstance);
+        }
+        else
+        {
+            error = startStrategy(strategyID);
+        }
+        if (!error.isEmpty())
+        {
+            qWarning(StrategyManagerLog) << "Failed to auto-start restored strategy:" << strategyID << "-" << error;
         }
     }
-    strategiesStateSettings->endArray();
 }
 
 QString StrategyManager::startQueuedReplayStrategies()

@@ -3027,8 +3027,14 @@ void GUIFrontend::restoreStartupState()
     if (!MainApp::isInReviewMode())
     {
         restoreReplayState();
-        // Queue strategy restoration behind replay setup.
-        QMetaObject::invokeMethod(mainAlgo, &MainAlgo::restoreStrategiesState, Qt::QueuedConnection);
+        // Entering replay restores strategies itself (MainApp::enterReplayMode).
+        if (!MainApp::isInReplayMode())
+        {
+            QMetaObject::invokeMethod(
+                mainAlgo,
+                [this]() { mainAlgo->restoreStrategiesState(true); },
+                Qt::QueuedConnection);
+        }
     }
     QTimer::singleShot(0, m_mainWindow, [this]() { m_mainWindow->setFocus(); });
 }

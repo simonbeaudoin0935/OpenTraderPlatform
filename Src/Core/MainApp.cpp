@@ -1633,6 +1633,10 @@ void MainApp::enterReplayMode(QDate p_date, QTime p_startTime, Playback::Speed p
 
             // Start replay in paused state - emits first bar to populate chart
             mainAlgo->enterReplayModePaused(displayedSymbol, p_date, p_startTime, p_speed);
+
+            // Reload the strategies unloaded by stopAllStrategies(). Previously running ones are only
+            // primed: nothing runs before the user presses Play.
+            mainAlgo->restoreStrategiesState(true);
         },
         Qt::QueuedConnection);
 
@@ -1716,6 +1720,10 @@ void MainApp::exitReplayMode()
                 // Create fresh stock instrument with live streams
                 mainAlgo->createAndSetDisplayedSymbolContext(displayedSymbol);
             }
+
+            // Reload the strategies unloaded by stopAllStrategies(), but never auto-start them when
+            // switching into a live/sim brokerage account.
+            mainAlgo->restoreStrategiesState(false);
         },
         Qt::QueuedConnection);
 
@@ -1806,6 +1814,9 @@ void MainApp::exitReviewMode(const bool p_restoreLiveState)
                 {
                     mainAlgo->createAndSetDisplayedSymbolContext(displayedSymbol);
                 }
+
+                // Strategies were unloaded on review entry; reload them without auto-starting.
+                mainAlgo->restoreStrategiesState(false);
             },
             Qt::QueuedConnection);
     }
@@ -1906,7 +1917,7 @@ void MainApp::restartReplaySession(QDate p_date, QTime p_startTime, Playback::Sp
         [this]()
         {
             qInfo() << "Restoring strategies after replay restart preload";
-            mainAlgo->restoreStrategiesState();
+            mainAlgo->restoreStrategiesState(true);
         },
         Qt::QueuedConnection);
 }

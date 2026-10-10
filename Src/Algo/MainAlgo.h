@@ -554,7 +554,8 @@ class MainAlgo final : public QObject
 
     /// @brief Restore previously loaded strategies from StrategiesState.ini.
     /// Must be called on the MainAlgo thread after all mode transitions are complete.
-    void restoreStrategiesState();
+    /// @param p_resumeRunning Re-start (or prime, in replay before playback) strategies that were running.
+    void restoreStrategiesState(bool p_resumeRunning);
 
     /// @brief Create a stock instrument and set it as displayed
     /// @param p_symbol The stock symbol to create and display

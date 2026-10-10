@@ -79,10 +79,26 @@ Useful public entry points:
 - `startStrategy(...)`
 - `unloadStrategy(...)`
 - `stopAllStrategies()`
+- `restoreStrategiesState(p_resumeRunning)`
 - `getActiveStrategies()`
 - `getStrategyConfig(...)`
 - `getStrategyRecentOrders(...)`
 - `getStrategyOpenPositions(...)`
+
+### Persistence across mode transitions
+
+Loaded strategies are persisted to `StrategiesState.ini` (config + `wasRunning`). Every data-source
+transition (enter/exit replay, replay restart, exit review) runs `stopAllStrategies()`, which unloads
+everything with persistence disabled so the file is untouched. The transition then calls
+`restoreStrategiesState()`:
+
+- entering replay / replay restart / live startup: `p_resumeRunning = true` (in replay before Play,
+  previously running strategies are only primed)
+- exiting replay or review into live/sim: `p_resumeRunning = false` — configs come back as
+  Loaded, never auto-started on a brokerage account
+
+`restoreStrategiesState()` reads the whole INI array before loading anything and writes the list
+once at the end; persisting while the read array is open nests keys under `LoadedStrategies/<i>/`.
 
 ## ProcessStrategyRuntimeBackend Responsibilities
 

@@ -5988,10 +5988,10 @@ void MainAlgo::stopAllStrategies()
     INFO << "All strategies stopped";
 }
 
-void MainAlgo::restoreStrategiesState()
+void MainAlgo::restoreStrategiesState(const bool p_resumeRunning)
 {
     OBJ_ASSUME_EQUAL(QThread::currentThread(), &thread);
-    m_strategyManager->restoreStrategiesState();
+    m_strategyManager->restoreStrategiesState(p_resumeRunning);
 }
 
 void MainAlgo::createAndSetDisplayedSymbolContext(const QString& p_symbol)
