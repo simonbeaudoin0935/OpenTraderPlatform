@@ -116,11 +116,6 @@ void EmaIndicator::clear()
 
 double EmaIndicator::indexKeyOffset(const TimeFrame tf)
 {
-    if (tf == TimeFrame::TEN_SECONDS)
-    {
-        return 0.5;
-    }
-
     return static_cast<double>(BarUtils::minutesPerBar(tf)) / 2.0;
 }
 

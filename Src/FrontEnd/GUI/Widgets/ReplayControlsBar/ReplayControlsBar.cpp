@@ -9,6 +9,15 @@
 #include <QTextCharFormat>
 #include <algorithm>
 
+namespace
+{
+    // Glyphs from the Geometric Shapes block render in the regular UI font. ⏸ (U+23F8) is missing from it and
+    // falls back to the taller color-emoji font, which grew the button height when switching to Pause.
+    const QString kStartLabel = QStringLiteral(u"\u25B6 Start");
+    const QString kPlayLabel = QStringLiteral(u"\u25B6 Play");
+    const QString kPauseLabel = QStringLiteral(u"\u25AE\u25AE Pause");
+} // namespace
+
 /**
  * @brief Constructs the ReplayControlsBar.
  *
@@ -69,7 +78,7 @@ ReplayControlsBar::ReplayControlsBar(QWidget* parent) : QWidget(parent)
     m_speedCombo->setToolTip("Replay playback speed");
 
     // Play / Pause button
-    m_playPauseBtn = new QPushButton("▶ Play", this);
+    m_playPauseBtn = new QPushButton(kPlayLabel, this);
     m_playPauseBtn->setCheckable(true);
     updatePlayPauseButton();
 
@@ -182,6 +191,11 @@ ReplayControlsBar::ReplayControlsBar(QWidget* parent) : QWidget(parent)
                   "    background-color: #D84315;"
                   "}"
                   "QPushButton:checked:hover { background-color: #BF360C; }"
+                  // Declared after the hover/checked rules so it wins; otherwise disabled buttons stay green.
+                  "QPushButton:disabled {"
+                  "    background-color: #3a3a2a;"
+                  "    color: #7a7a7a;"
+                  "}"
                   "QPushButton#ReplayRandomDayButton {"
                   "    background-color: #5f490a;"
                   "    border: 1px solid #aa8800;"
@@ -197,6 +211,18 @@ ReplayControlsBar::ReplayControlsBar(QWidget* parent) : QWidget(parent)
                   "    color: #7a7a7a;"
                   "    border: 1px solid #5a5a5a;"
                   "}");
+
+    // The label (and its glyph) changes with the replay state; pin the button to the largest
+    // label so the toolbar layout doesn't shift on every Play/Pause toggle.
+    m_playPauseBtn->ensurePolished();
+    QSize playPauseSize;
+    for (const QString& label: {kStartLabel, kPlayLabel, kPauseLabel})
+    {
+        m_playPauseBtn->setText(label);
+        playPauseSize = playPauseSize.expandedTo(m_playPauseBtn->sizeHint());
+    }
+    m_playPauseBtn->setFixedSize(playPauseSize);
+    updatePlayPauseButton();
 
     // Connections
     connect(m_dayEdit, &QDateEdit::dateChanged, this, &ReplayControlsBar::onReplayDayChanged);
@@ -571,17 +597,17 @@ void ReplayControlsBar::updatePlayPauseButton()
     if (m_playPauseBtn->isChecked())
     {
         // Replay is running — offer to pause
-        m_playPauseBtn->setText("⏸ Pause");
+        m_playPauseBtn->setText(kPauseLabel);
     }
     else if (m_replayState == ReplayState::PreloadingPaused || m_replayState == ReplayState::Inactive)
     {
         // Never started yet — pressing the button will begin from scratch
-        m_playPauseBtn->setText("▶ Start");
+        m_playPauseBtn->setText(kStartLabel);
     }
     else
     {
         // Was playing at least once, currently paused — pressing the button resumes
-        m_playPauseBtn->setText("▶ Play");
+        m_playPauseBtn->setText(kPlayLabel);
     }
 }
 

@@ -144,16 +144,12 @@ void BarCache::warmCurrentDayCacheForLive(const QDateTime& p_now)
     };
 
     loadCachedBars(TimeFrame::ONE_MINUTE);
-    loadCachedBars(TimeFrame::TEN_SECONDS);
 
     if (p_now.time() >= TradingHours::TIME_FIRST_CANDLE_EARLY_PRE_MARKET_SESSION)
     {
         prefillNullBarsThrough(TimeFrame::ONE_MINUTE,
                                date,
                                floorTimeToBarBoundary(TimeFrame::ONE_MINUTE, p_now.time()));
-        prefillNullBarsThrough(TimeFrame::TEN_SECONDS,
-                               date,
-                               floorTimeToBarBoundary(TimeFrame::TEN_SECONDS, p_now.time()));
     }
 }
 
@@ -481,7 +477,7 @@ BarCache::GetBarsResult_t BarCache::getBars(TimeFrame tf, const QDate& date, con
         }
     }
 
-    if (isCurrentDay && (tf == TimeFrame::ONE_MINUTE || tf == TimeFrame::TEN_SECONDS))
+    if (isCurrentDay && tf == TimeFrame::ONE_MINUTE)
     {
         prefillNullBarsThrough(tf, date, floorTimeToBarBoundary(tf, now.time()));
     }
@@ -496,8 +492,7 @@ BarCache::GetBarsResult_t BarCache::getBars(TimeFrame tf, const QDate& date, con
     {
         std::unique_ptr<QVector<Bar>> cachedBars = std::move(barsFromCache.value());
 
-        const bool isLiveWarmableCurrentDay =
-            isCurrentDay && (tf == TimeFrame::ONE_MINUTE || tf == TimeFrame::TEN_SECONDS);
+        const bool isLiveWarmableCurrentDay = isCurrentDay && tf == TimeFrame::ONE_MINUTE;
         bool shouldForceLiveCurrentDayFetch = false;
         if (isLiveWarmableCurrentDay)
         {
@@ -611,8 +606,8 @@ BarCache::GetBarsResult_t BarCache::getBars(TimeFrame tf, const QDate& date, con
 
                     BarCache* const self = barCache.data();
 
-                    if (isCurrentDay && (tf == TimeFrame::ONE_MINUTE || tf == TimeFrame::TEN_SECONDS) &&
-                        !bypassDatabaseForCurrentDayTailBackfill && dbBars.has_value())
+                    if (isCurrentDay && tf == TimeFrame::ONE_MINUTE && !bypassDatabaseForCurrentDayTailBackfill &&
+                        dbBars.has_value())
                     {
                         self->m_currentDayBackfillStartByTimeFrame[tf].remove(date);
                         backfillStart = self->currentDayBackfillStart(tf, date, now, dbBars->get());
@@ -709,8 +704,7 @@ BarCache::GetBarsResult_t BarCache::getBars(TimeFrame tf, const QDate& date, con
                         }
                     }
 
-                    if (isCurrentDay && tf != TimeFrame::ONE_MINUTE && tf != TimeFrame::TEN_SECONDS &&
-                        tf != TimeFrame::ONE_SECOND)
+                    if (isCurrentDay && tf != TimeFrame::ONE_MINUTE && tf != TimeFrame::ONE_SECOND)
                     {
                         auto oneMinuteIt = self->m_barCacheByTimeFrame.constFind(TimeFrame::ONE_MINUTE);
                         if (oneMinuteIt != self->m_barCacheByTimeFrame.constEnd())
@@ -815,7 +809,6 @@ BarCache::GetBarsResult_t BarCache::getBars(TimeFrame tf, const QDate& date, con
                         switch (tf)
                         {
                         case TimeFrame::ONE_SECOND:
-                        case TimeFrame::TEN_SECONDS:
                             qCWarning(LOGGING_CATEGORY)
                                 << apiCache->objectName()
                                 << "TradeStation historical API does not support sub-minute bars for" << symbol << "tf"
@@ -1008,7 +1001,6 @@ BarCache::GetBarsResult_t BarCache::getBars(TimeFrame tf, const QDate& date, con
                     };
 
                     const bool canWarmFromReplayTrades = MainApp::isInReplayMode() && tf != TimeFrame::ONE_SECOND &&
-                                                         tf != TimeFrame::TEN_SECONDS &&
                                                          DBClient::hasReplayData(date, symbol);
 
                     if (!canWarmFromReplayTrades)

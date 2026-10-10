@@ -257,11 +257,12 @@ class StrategyManager final : public QObject
 
     /*
      * Restore previously loaded strategies from StrategiesState.ini.
-     * Called once during startup (MainAlgo::onThreadStarted) after all data
-     * source connections are established.
+     * Called at startup and after every data-source mode transition (stopAllStrategies()
+     * unloads everything but keeps the persisted list intact).
+     * p_resumeRunning: re-start (or prime, in replay before playback) strategies that were running.
      * Failures (missing executable, corrupt config) are logged as warnings and skipped.
      */
-    void restoreStrategiesState();
+    void restoreStrategiesState(bool p_resumeRunning);
     [[nodiscard]] QString startQueuedReplayStrategies();
 
   public slots:
@@ -370,9 +371,8 @@ class StrategyManager final : public QObject
     quint64 m_nextSymbolActivitySequence = 1;
 
     /// Guards persistStrategiesState() from firing during destructor teardown
-    /// or bulk stopAllStrategies() mode transitions.  Re-enabled at the start
-    /// of restoreStrategiesState() so that individual loadStrategy() calls
-    /// triggered by restore DO write back to the file.
+    /// or bulk stopAllStrategies() mode transitions.  Re-enabled by
+    /// restoreStrategiesState() once the persisted list has been reloaded.
     bool m_persistEnabled = true;
 
     /*

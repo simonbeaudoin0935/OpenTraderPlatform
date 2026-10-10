@@ -84,8 +84,7 @@ void StockPriceChart::addLiveBar(const QString& symbol, const Bar& bar)
 
     // QCustomPlot centers candlesticks on their key. To align the left edge of the candle
     // with the bar's open time, we offset the key by half the candle width in index-space.
-    // For 10s TF, the x-axis is in 10-second slots (width = 1 slot per bar → offset = 0.5).
-    // For minute+ TFs, the x-axis is in minute slots (e.g. 5m bar spans 5 slots → offset = 2.5).
+    // The x-axis is in minute slots (e.g. 5m bar spans 5 slots → offset = 2.5).
     const double keyOffset = chartIndexKeyOffset(m_displayTimeFrame);
     const double displayKey = index + keyOffset;
 
@@ -847,7 +846,7 @@ void StockPriceChart::checkForMissingBars(const QDateTime& viewStartTime, const 
 
     QDateTime viewStartTimeRounded = viewStartTime;
 
-    // Round down to timeframe boundary (10s/1m/5m...) in market time.
+    // Round down to timeframe boundary (1m/5m...) in market time.
     viewStartTimeRounded = viewStartTimeRounded.addMSecs(-viewStartTimeRounded.time().msec());
 
     // Adjust to valid trading hours

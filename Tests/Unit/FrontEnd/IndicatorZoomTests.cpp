@@ -94,9 +94,35 @@ class IndicatorZoomTests : public QObject
         const ChartIndicator::UpdateContext context{bars, startTime(), TimeFrame::ONE_MINUTE};
         indicator.rebuild(context);
         const QCPRange initialRange = plot.yAxis->range();
+        QCOMPARE(initialRange.center(), 0.0);
         appendBar(bars, 100.0f);
         indicator.rebuild(context);
         QVERIFY(plot.yAxis->range().size() > initialRange.size());
+        QCOMPARE(plot.yAxis->range().center(), 0.0);
+    }
+
+    void macdZeroCenteredRange_data()
+    {
+        QTest::addColumn<float>("lastClose");
+        QTest::newRow("rising") << 100.0f;
+        QTest::newRow("falling") << 1.0f;
+        QTest::newRow("flat") << 10.0f;
+    }
+
+    void macdZeroCenteredRange()
+    {
+        QFETCH(float, lastClose);
+        QCustomPlot plot;
+        MacdIndicator indicator(&plot, plot.xAxis, plot.yAxis);
+        indicator.setVisible(true);
+        QMap<int, Bar> bars;
+        appendBar(bars, 10.0f);
+        appendBar(bars, lastClose);
+        const ChartIndicator::UpdateContext context{bars, startTime(), TimeFrame::ONE_MINUTE};
+        indicator.rebuild(context);
+        const QCPRange range = plot.yAxis->range();
+        QVERIFY(range.upper > 0.0);
+        QCOMPARE(range.lower, -range.upper);
     }
 };
 

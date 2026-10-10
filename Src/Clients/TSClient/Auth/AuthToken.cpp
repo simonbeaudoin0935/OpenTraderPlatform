@@ -150,8 +150,21 @@ bool AuthToken::validateExpiresIn(int expiresIn)
 
 AuthToken AuthToken::loadFromSettings()
 {
-    AuthToken token;
     SecureStorage storage;
+    return fromStoredSecrets(storage.retrieveValuesSync("TradeStation", {"access_token", "refresh_token", "id_token"}));
+}
+
+void AuthToken::loadFromSettingsAsync(SecureStorage& p_storage, std::function<void(const AuthToken&)> p_callback)
+{
+    p_storage.retrieveValues("TradeStation",
+                             {"access_token", "refresh_token", "id_token"},
+                             [p_callback = std::move(p_callback)](const QMap<QString, QString>& p_values)
+                             { p_callback(fromStoredSecrets(p_values)); });
+}
+
+AuthToken AuthToken::fromStoredSecrets(const QMap<QString, QString>& p_secureTokens)
+{
+    AuthToken token;
 
     // Load metadata from regular QSettings
     QSettings settings(QSettings::IniFormat,
@@ -166,13 +179,9 @@ AuthToken AuthToken::loadFromSettings()
     token.expiresIn = settings.value("Tokens/expires_in").toInt();
     token.receivedAt = QDateTime::fromString(settings.value("Tokens/received_at").toString(), Qt::ISODate);
 
-    // Load sensitive tokens from SecureStorage synchronously
-    QMap<QString, QString> secureTokens =
-        storage.retrieveValuesSync("TradeStation", {"access_token", "refresh_token", "id_token"});
-
-    token.accessToken = secureTokens.value("access_token");
-    token.refreshToken = secureTokens.value("refresh_token");
-    token.idToken = secureTokens.value("id_token");
+    token.accessToken = p_secureTokens.value("access_token");
+    token.refreshToken = p_secureTokens.value("refresh_token");
+    token.idToken = p_secureTokens.value("id_token");
 
     if (token.isValid())
     {
@@ -206,6 +215,31 @@ bool AuthToken::storeToSettings(const AuthToken& token)
         return false;
     }
 
+    return storeMetadata(token);
+}
+
+void AuthToken::storeToSettingsAsync(SecureStorage& p_storage,
+                                     const AuthToken& p_token,
+                                     std::function<void(bool)> p_callback)
+{
+    // Persist a rotated refresh token before other values so a later write failure cannot lose it.
+    p_storage.storeValues(
+        "TradeStation",
+        {{"refresh_token", p_token.refreshToken}, {"access_token", p_token.accessToken}, {"id_token", p_token.idToken}},
+        [p_token, p_callback = std::move(p_callback)](const bool p_success)
+        {
+            if (!p_success)
+            {
+                qCWarning(TSAuthTokenLog) << "Failed to store auth token in" << SecureStorage::backendName();
+                p_callback(false);
+                return;
+            }
+            p_callback(storeMetadata(p_token));
+        });
+}
+
+bool AuthToken::storeMetadata(const AuthToken& token)
+{
     // Store metadata in regular QSettings
     QSettings settings(QSettings::IniFormat,
                        QSettings::UserScope,

@@ -151,6 +151,26 @@ namespace TSClientHosts
 } // namespace TSClientHosts
 
 /**
+ * @namespace TSClientNetworkConstants
+ * @brief Watchdogs used to detect a wedged TradeStation HTTP/2 connection
+ *
+ * All TradeStation traffic is multiplexed over one HTTP/2 connection per QNetworkAccessManager.
+ * When that connection stops answering new requests (observed after server GOAWAY frames), every
+ * new stream/REST call hangs while already-established streams keep flowing. These timeouts detect
+ * that state so TSClient can move new traffic onto a fresh connection.
+ */
+namespace TSClientNetworkConstants
+{
+    // A new stream that has not received response headers or bytes within this delay is considered
+    // stalled. Must stay below the Stream heartbeat timeout (10 s) so new traffic is moved to a fresh
+    // connection before the stream's own retry is attempted.
+    inline constexpr int STREAM_FIRST_RESPONSE_TIMEOUT_MS = 8000;
+
+    // REST requests are aborted after this delay without any upload/download progress.
+    inline constexpr int REST_TRANSFER_TIMEOUT_MS = 20000;
+} // namespace TSClientNetworkConstants
+
+/**
  * @namespace TSClientEndpoints
  * @brief TradeStation API endpoint constants
  *
@@ -210,9 +230,11 @@ namespace OrderRoutingConstants
 namespace StreamConstants
 {
     // Heartbeat interval for mock streams in replay mode (milliseconds)
-    // Should be less than the stream heartbeat timeout (10 seconds)
+    // Should be less than the stream heartbeat timeout (ten seconds)
     inline constexpr int MOCK_HEARTBEAT_INTERVAL_MS = 5000;
     inline constexpr int LIVE_RETRY_INITIAL_DELAY_MS = 1000;
+    inline constexpr int BROKERAGE_RETRY_DELAY_MS = 300;
+    inline constexpr int BROKERAGE_RECOVERY_TIMEOUT_MS = 15000;
     inline constexpr int LIVE_RETRY_MAX_DELAY_MS = 30000;
 } // namespace StreamConstants
 
@@ -705,6 +727,19 @@ namespace QuoteConstants
 } // namespace QuoteConstants
 
 /**
+ * @brief Synthetic Time & Sales reconstruction from live bar-stream volume deltas.
+ */
+namespace TapeReconstructionConstants
+{
+    /// Bar prices are floats; round prints to 1/10000 to undo float noise (e.g. 0.17589999).
+    constexpr double PRICE_ROUNDING_FACTOR = 10000.0;
+    /// Tolerance when comparing a print price to the bid/ask.
+    constexpr double PRICE_COMPARE_EPSILON = 1e-6;
+    /// Level 2 best bid/ask older than this is considered stale; the quote-stream BBO is used instead.
+    constexpr qint64 LEVEL2_BBO_MAX_AGE_MS = 5000;
+} // namespace TapeReconstructionConstants
+
+/**
  * @namespace MarketCalendar
  * @brief NYSE market holiday calendar for 2026.
  *
@@ -842,4 +877,7 @@ namespace AsyncLogger
     // wait at ~10 ms.
     inline constexpr int CRASH_FLUSH_RETRIES = 10;
     inline constexpr long CRASH_FLUSH_RETRY_DELAY_NS = 1'000'000; // 1 ms
+
+    // Number of most recent CRIT lines kept in memory for the GUI CRIT badge popup.
+    inline constexpr qsizetype RECENT_CRITICAL_LOG_CAPACITY = 10;
 } // namespace AsyncLogger

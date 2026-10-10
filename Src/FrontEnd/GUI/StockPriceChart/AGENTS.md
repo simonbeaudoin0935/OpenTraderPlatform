@@ -24,6 +24,10 @@ StockPriceChart/
 └── ZoomAndPanning.cpp               # Mouse interaction handling
 ```
 
+MACD automatic Y-axis ranges are symmetric about zero. Both normal and
+Shift-wheel vertical zoom keep zero at the subplot midpoint; horizontal
+zoom remains unchanged. Manual zoom remains preserved across data updates.
+
 ### Source File Organization
 
 Following the TSClient pattern, the implementation is divided into logical units:

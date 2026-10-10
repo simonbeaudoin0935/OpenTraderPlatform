@@ -1,9 +1,11 @@
 #pragma once
 
 #include <QByteArray>
+#include <QElapsedTimer>
 #include <QProcess>
 #include <QSocketNotifier>
 #include <QString>
+#include <QStringList>
 #include <cstdint>
 #include <expected>
 #include <functional>
@@ -65,6 +67,12 @@ class ProcessStrategyRuntimeBackend final : public IStrategyRuntimeBackend
     void drainInboundSocket();
     void handleInboundPayload(std::span<const std::uint8_t> p_payload);
     void reportFailure(const QString& p_errorMessage);
+    /**
+     * @brief Recent strategy ERROR log or stderr tail, formatted to append to a failure reason
+     * @param p_baseMessage Failure reason the diagnostics will be appended to (used to avoid duplication)
+     * @return Empty when nothing recent enough was captured
+     */
+    [[nodiscard]] QString buildFailureDiagnostics(const QString& p_baseMessage) const;
     void scheduleSocketCleanup(const QString& p_errorMessage);
 
     [[nodiscard]] QString openListeningSocket();
@@ -105,4 +113,8 @@ class ProcessStrategyRuntimeBackend final : public IStrategyRuntimeBackend
     bool m_waitingForStartReady = false;
     bool m_startReadyReceived = false;
     QString m_lastFailureMessage;
+    QString m_lastStrategyError;
+    QElapsedTimer m_lastStrategyErrorTimer;
+    QStringList m_recentStderrLines;
+    QElapsedTimer m_lastStderrTimer;
 };

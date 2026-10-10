@@ -2,6 +2,15 @@
 
 > **TSClient is the live/sim TradeStation client** for brokerage plus market data streams (bars, Level 2, quotes).
 
+Stream closure messages include the actual `StreamError` reason (e.g. `GoAway`);
+network details are included only for a real network error. A completed stream
+emits its closure once, not again as an intentional close during destruction.
+
+Byte accounting ignores empty response bodies: locally blocked requests and
+network failures may legitimately contain no data. The request handler logs the
+actual failure instead. Authentication-related order-route lookup failures are
+warnings; other route errors retain their existing severity.
+
 TSClient is the singleton class for TradeStation API communication in OpenTraderPlatform. It handles authentication, account/order REST requests, order/position WebSocket streams, and live/sim market-data endpoints/streams.
 
 ## Overview
@@ -307,14 +316,23 @@ connect(&TSClient::getInstance(), &TSClient::authStateChanged,
 
 ## Error Handling
 
-### Request Timeouts
+### Request Timeouts and Stalled HTTP/2 Connections
 
-Default timeout: 30 seconds per request
-Timeout handler automatically:
-1. Removes request from tracking
-2. Invokes callback with `success = false`
-3. Logs warning with request type
-4. Cleans up QNetworkReply
+All TradeStation traffic from one `AuthenticatedNetworkAccessManager` is multiplexed over a single
+HTTP/2 connection. After some server `GoAway` frames, that connection can keep serving established
+streams while never answering new requests (every reconnect/REST call hangs). The manager watches each
+real reply (`TSClientNetworkConstants` in `CONSTANTS.h`):
+
+- **Streams** (requests built with `buildStreamRequest()`): no headers/bytes within
+  `STREAM_FIRST_RESPONSE_TIMEOUT_MS` (8 s, below the 10 s `Stream` heartbeat) → `connectionStalled()`.
+  The stream itself is not aborted; its heartbeat timeout handles that and the owner retries.
+- **REST** (requests built with `buildNetworkRequest()`): no progress for `REST_TRANSFER_TIMEOUT_MS`
+  (20 s) → the reply is aborted (`OperationCanceledError`), and `connectionStalled()` is emitted if no
+  response was ever received.
+
+`TSClient::onNetworkConnectionStalled()` replaces the active manager with a fresh one (fresh connection)
+and `retire()`s the stalled one, which deletes itself once its last reply is destroyed. Stalls reported
+by already-retired managers are ignored. Always use `buildStreamRequest()` for long-lived streams.
 
 ### Network Errors
 
@@ -359,6 +377,7 @@ namespace TSClientEndpoints {
 4. **TLS only** - All communication over HTTPS/WSS
 5. **Token refresh** - Automatic refresh minimizes token exposure time
 6. **No insecure fallback** - Qt6Keychain is mandatory; keyring failures are reported, never redirected to file storage
+7. **Async keyring on the TSClient thread** - Startup credential loading (YubiKey backend), post-login `ClientToken` reload and refreshed-token persistence use `AuthToken::loadFromSettingsAsync` / `storeToSettingsAsync` and `ClientToken::loadFromSettingsAsync`. Sync keyring calls from the TSClient thread deadlock when the GUI thread is blocked on TSClient (e.g. `setMode`). `m_authInProgress` / `m_refreshInProgress` stay set until the keyring callback completes.
 
 ## Rate Limiting
 

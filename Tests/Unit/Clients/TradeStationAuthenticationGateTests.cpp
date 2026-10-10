@@ -6,11 +6,119 @@
 
 #include "AuthenticatedNetworkAccessManager.h"
 
+namespace
+{
+    // Accepts connections and reads requests but never answers, like a wedged HTTP/2 connection
+    void startSilentServer(QTcpServer& p_server)
+    {
+        QVERIFY(p_server.listen(QHostAddress::LocalHost, 0));
+        QObject::connect(
+            &p_server,
+            &QTcpServer::newConnection,
+            &p_server,
+            [&p_server]()
+            {
+                QTcpSocket* socket = p_server.nextPendingConnection();
+                QObject::connect(socket, &QTcpSocket::readyRead, socket, [socket]() { socket->readAll(); });
+            });
+    }
+
+    QNetworkRequest requestFor(const QTcpServer& p_server, bool p_streaming)
+    {
+        QNetworkRequest request(QUrl(QString("http://127.0.0.1:%1/test").arg(p_server.serverPort())));
+        request.setAttribute(AuthenticatedNetworkAccessManager::StreamingRequestAttribute, p_streaming);
+        return request;
+    }
+} // namespace
+
 class TradeStationAuthenticationGateTests : public QObject
 {
     Q_OBJECT
 
   private slots:
+    void silentStreamReportsStallWithoutAborting()
+    {
+        QTcpServer server;
+        startSilentServer(server);
+        AuthenticatedNetworkAccessManager manager([](const QNetworkRequest&) { return true; });
+        manager.setWatchdogTimeouts(100, 5000);
+        QSignalSpy stalled(&manager, &AuthenticatedNetworkAccessManager::connectionStalled);
+
+        QNetworkReply* reply = manager.get(requestFor(server, true));
+        QVERIFY(stalled.wait(2000));
+        QCOMPARE(stalled.count(), 1);
+        QVERIFY(stalled.first().first().toString().startsWith("stream /test"));
+        QVERIFY(reply->isRunning());
+        delete reply;
+    }
+
+    void silentRestRequestReportsStallAndAborts()
+    {
+        QTcpServer server;
+        startSilentServer(server);
+        AuthenticatedNetworkAccessManager manager([](const QNetworkRequest&) { return true; });
+        manager.setWatchdogTimeouts(5000, 100);
+        QSignalSpy stalled(&manager, &AuthenticatedNetworkAccessManager::connectionStalled);
+
+        QNetworkReply* reply = manager.get(requestFor(server, false));
+        QSignalSpy finished(reply, &QNetworkReply::finished);
+        QVERIFY(finished.wait(2000));
+        QCOMPARE(reply->error(), QNetworkReply::OperationCanceledError);
+        QCOMPARE(stalled.count(), 1);
+        delete reply;
+    }
+
+    void respondingRequestDoesNotReportStall()
+    {
+        QTcpServer server;
+        QVERIFY(server.listen(QHostAddress::LocalHost, 0));
+        connect(&server,
+                &QTcpServer::newConnection,
+                &server,
+                [&server]()
+                {
+                    QTcpSocket* socket = server.nextPendingConnection();
+                    connect(socket,
+                            &QTcpSocket::readyRead,
+                            socket,
+                            [socket]()
+                            {
+                                socket->readAll();
+                                socket->write("HTTP/1.1 200 OK\r\nContent-Length: 2\r\nConnection: close\r\n\r\nok");
+                                socket->disconnectFromHost();
+                            });
+                });
+        AuthenticatedNetworkAccessManager manager([](const QNetworkRequest&) { return true; });
+        manager.setWatchdogTimeouts(200, 200);
+        QSignalSpy stalled(&manager, &AuthenticatedNetworkAccessManager::connectionStalled);
+
+        QNetworkReply* reply = manager.get(requestFor(server, true));
+        QSignalSpy finished(reply, &QNetworkReply::finished);
+        QVERIFY(finished.wait(2000));
+        QCOMPARE(reply->error(), QNetworkReply::NoError);
+        QTest::qWait(400);
+        QCOMPARE(stalled.count(), 0);
+        delete reply;
+    }
+
+    void retiredManagerDeletesItselfAfterLastReply()
+    {
+        QTcpServer server;
+        startSilentServer(server);
+        auto* manager = new AuthenticatedNetworkAccessManager([](const QNetworkRequest&) { return true; });
+        QSignalSpy destroyed(manager, &QObject::destroyed);
+
+        QNetworkReply* reply = manager->get(requestFor(server, true));
+        reply->setParent(nullptr);
+        manager->retire();
+        QVERIFY(manager->isRetired());
+        QTest::qWait(50);
+        QCOMPARE(destroyed.count(), 0);
+
+        delete reply;
+        QVERIFY(destroyed.wait(1000));
+    }
+
     void blockedRequestsNeverReachNetwork()
     {
         QTcpServer server;

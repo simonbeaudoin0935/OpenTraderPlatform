@@ -11,12 +11,11 @@
  * Each value represents the duration of one bar in **seconds**.
  *
  * ONE_SECOND is an internal data-source type only (Databento Ohlcv1S).
- * It is not shown in the chart UI; it is used as the aggregate source for TEN_SECONDS.
+ * It is not shown in the chart UI.
  */
 enum class TimeFrame
 {
     ONE_SECOND = 1,        // Internal data source only (not shown in chart UI)
-    TEN_SECONDS = 10,      // 10-second candles
     ONE_MINUTE = 60,       // 1 * 60 seconds
     FIVE_MINUTES = 300,    // 5 * 60 seconds
     FIFTEEN_MINUTES = 900, // 15 * 60 seconds
@@ -46,3 +45,10 @@ QString timeFrameToString(TimeFrame timeframe);
  * @return TimeFrame enum value, or ONE_MINUTE if the string is invalid.
  */
 TimeFrame stringToTimeFrame(const QString& timeframeStr);
+/**
+ * @brief Normalizes persisted or external chart timeframe values to a supported display timeframe.
+ *
+ * @param timeframe The candidate timeframe value.
+ * @return The candidate if it is displayable, otherwise ONE_MINUTE.
+ */
+TimeFrame normalizeDisplayTimeFrame(TimeFrame timeframe);

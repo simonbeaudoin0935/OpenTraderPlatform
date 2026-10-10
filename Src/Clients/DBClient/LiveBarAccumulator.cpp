@@ -85,7 +85,6 @@ QDateTime LiveBarAccumulator::barOpenTimeForTrade(const QDateTime& p_tradeTime) 
 {
     // Floor to current interval boundary (open-time convention):
     //   For 60s: trade at 09:31:04 → bar open 09:31:00
-    //   For 10s: trade at 09:31:14 → bar open 09:31:10
     const QDateTime utc = p_tradeTime.toUTC();
     const qint64 epochSecs = utc.toSecsSinceEpoch();
     const qint64 intervalFloor = (epochSecs / m_intervalSeconds) * m_intervalSeconds;

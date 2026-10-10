@@ -1139,6 +1139,9 @@ void MainAlgo::subscribeLiveSymbol(SymbolContext* p_symbolContext)
             return;
         }
 
+        // Volume deltas across a reconnect would print everything traded while the stream was down.
+        p_symbolContext->enqueueTapeReset();
+
         connect(p_symbolContext->m_streamBars,
                 &StreamBars::newBarReceived,
                 this,
@@ -1319,7 +1322,7 @@ void MainAlgo::routeBar(const QString& p_symbol, const Bar& p_bar)
     QPointer<SymbolContext> sc = m_symbolContexts.value(p_symbol);
     if (!sc.isNull())
     {
-        sc->barReceiver.onReceivedNewBar(p_bar);
+        sc->enqueueBar(p_bar);
     }
 }
 
@@ -1346,59 +1349,17 @@ void MainAlgo::routeQuote(const QString& p_symbol, const Quote& p_quote)
         return;
     }
 
-    const double lastPrice = p_quote.getLast();
-    const unsigned int lastSize = p_quote.getLastSize();
-    if (!(std::isfinite(lastPrice) && lastPrice > 0.0) || lastSize == 0u)
-    {
-        return;
-    }
-
-    QDateTime tradeTime = p_quote.getTradeTime();
-    if (!tradeTime.isValid())
-    {
-        tradeTime = MainApp::getCurrentAppTime();
-    }
-    else
-    {
-        tradeTime = tradeTime.toTimeZone(TradingHours::MARKET_TIMEZONE);
-    }
-
-    QuoteTradeFingerprint& lastFingerprint = m_lastQuoteTradeBySymbol[p_symbol];
-    const bool hasTradeChanged = !lastFingerprint.timestamp.isValid() || lastFingerprint.timestamp != tradeTime ||
-                                 lastFingerprint.size != lastSize ||
-                                 !qFuzzyCompare(lastFingerprint.price + 1.0, lastPrice + 1.0);
-    if (!hasTradeChanged)
-    {
-        return;
-    }
-
-    lastFingerprint.timestamp = tradeTime;
-    lastFingerprint.price = lastPrice;
-    lastFingerprint.size = lastSize;
-
-    Trade syntheticTrade;
-    syntheticTrade.m_symbol = p_symbol;
-    syntheticTrade.m_timestamp = tradeTime;
-    syntheticTrade.m_price = lastPrice;
-    syntheticTrade.m_size =
-        static_cast<int>(qMin(lastSize, static_cast<unsigned int>(std::numeric_limits<int>::max())));
-    syntheticTrade.m_side = TradeSide::None;
-
+    // TradeStation has no trade tape: Time & Sales is rebuilt from bar-stream volume deltas
+    // (SymbolContext::processBar). The quote only supplies the fallback bid/ask used to colour
+    // those prints when no Level 2 book is available.
     const std::optional<double> bestBid = p_quote.getBestBid();
     const std::optional<double> bestAsk = p_quote.getBestAsk();
-    if (bestBid.has_value() && bestAsk.has_value())
+    if (!bestBid.has_value() || !bestAsk.has_value())
     {
-        if (lastPrice >= bestAsk.value())
-        {
-            syntheticTrade.m_side = TradeSide::Ask;
-        }
-        else if (lastPrice <= bestBid.value())
-        {
-            syntheticTrade.m_side = TradeSide::Bid;
-        }
+        return;
     }
 
-    sc->enqueueTrade(syntheticTrade);
+    sc->enqueueQuoteBbo(BarTapeReconstructor::Bbo{bestBid.value(), bestAsk.value()});
 }
 
 void MainAlgo::routeTrade(const QString& p_symbol, const Trade& p_trade)
@@ -2743,7 +2704,6 @@ SymbolContext::SymbolContext(const QString& p_symbol, QObject* p_parent)
     , barReceiver(p_symbol, this)
     , m_level2Receiver(p_symbol, this)
     , m_liveBarAccumulator(this, 60)
-    , m_live10sBarAccumulator(this, 10)
     , m_barAggregator(this)
 {
     this->setObjectName("SymbolContext::" + p_symbol);
@@ -2796,15 +2756,6 @@ SymbolContext::SymbolContext(const QString& p_symbol, QObject* p_parent)
     // Wire BarAggregator::barClosed → BarCache for higher-TF storage
     connected =
         connect(&m_barAggregator, &BarAggregator::barClosed, &barCache, &BarCache::storeBar, Qt::DirectConnection);
-    OBJ_ASSUME_TRUE(connected);
-
-    // Wire 10s accumulator barClosed → BarCache for 10s bar storage
-    connected = connect(
-        &m_live10sBarAccumulator,
-        &LiveBarAccumulator::barClosed,
-        &barCache,
-        [this](const QString&, const Bar& bar) { barCache.storeBar(TimeFrame::TEN_SECONDS, bar); },
-        Qt::DirectConnection);
     OBJ_ASSUME_TRUE(connected);
 
     // ── Always-populate DisplaySnapshot ──────────────────────────────────
@@ -2871,35 +2822,6 @@ SymbolContext::SymbolContext(const QString& p_symbol, QObject* p_parent)
         Qt::DirectConnection);
     OBJ_ASSUME_TRUE(connected);
 
-    // 10s accumulator → snapshot
-    connected = connect(
-        &m_live10sBarAccumulator,
-        &LiveBarAccumulator::barUpdated,
-        this,
-        [this](const QString&, const Bar& bar)
-        {
-            LTTnG_TP(opentraderplatform, snapshot_write, symbol.toUtf8().constData(), "aggregator10s");
-            QWriteLocker lock(&m_displaySnapshot.lock);
-            m_displaySnapshot.aggregatorBars[TimeFrame::TEN_SECONDS] = bar;
-            m_displaySnapshot.aggregatorDirty = true;
-        },
-        Qt::DirectConnection);
-    OBJ_ASSUME_TRUE(connected);
-
-    connected = connect(
-        &m_live10sBarAccumulator,
-        &LiveBarAccumulator::barClosed,
-        this,
-        [this](const QString&, const Bar& bar)
-        {
-            LTTnG_TP(opentraderplatform, snapshot_write, symbol.toUtf8().constData(), "aggregator10s");
-            QWriteLocker lock(&m_displaySnapshot.lock);
-            m_displaySnapshot.aggregatorBars[TimeFrame::TEN_SECONDS] = bar;
-            m_displaySnapshot.aggregatorDirty = true;
-        },
-        Qt::DirectConnection);
-    OBJ_ASSUME_TRUE(connected);
-
     // DBClient wiring is handled centrally by MainAlgo routing (onNewLevel2Received / onNewTradeReceived).
     // Live subscription is also managed by MainAlgo when creating the SymbolContext.
 
@@ -2960,14 +2882,34 @@ void SymbolContext::enqueueLevel2(const Level2& p_level2)
 
 void SymbolContext::enqueueTrade(const Trade& p_trade)
 {
+    enqueueWorkItem(WorkItem{p_trade}, "Trade");
+}
+
+void SymbolContext::enqueueBar(const Bar& p_bar)
+{
+    enqueueWorkItem(WorkItem{p_bar}, "Bar");
+}
+
+void SymbolContext::enqueueQuoteBbo(const BarTapeReconstructor::Bbo& p_bbo)
+{
+    enqueueWorkItem(WorkItem{p_bbo}, "QuoteBbo");
+}
+
+void SymbolContext::enqueueTapeReset()
+{
+    enqueueWorkItem(WorkItem{TapeReset{}}, "TapeReset");
+}
+
+void SymbolContext::enqueueWorkItem(WorkItem&& p_item, [[maybe_unused]] const char* p_kind)
+{
     [[maybe_unused]] int depth = 0;
     {
         QMutexLocker lock(&m_queueMutex);
-        m_queue.enqueue(WorkItem{p_trade});
+        m_queue.enqueue(std::move(p_item));
         depth = m_queue.size();
     }
     m_pendingWorkItems.fetch_add(1, std::memory_order_release);
-    LTTnG_TP(opentraderplatform, symbolctx_enqueue, symbol.toUtf8().constData(), "Trade", depth);
+    LTTnG_TP(opentraderplatform, symbolctx_enqueue, symbol.toUtf8().constData(), p_kind, depth);
     if (!m_draining.exchange(true, std::memory_order_acq_rel))
     {
         LTTnG_TP(opentraderplatform, symbolctx_pool_submit, symbol.toUtf8().constData());
@@ -3029,6 +2971,18 @@ void SymbolContext::drain()
                     LTTnG_TP(opentraderplatform, symbolctx_process_trade, symbol.toUtf8().constData());
                     processTrade(event);
                 }
+                else if constexpr (std::is_same_v<T, Bar>)
+                {
+                    processBar(event);
+                }
+                else if constexpr (std::is_same_v<T, BarTapeReconstructor::Bbo>)
+                {
+                    m_quoteBbo = event;
+                }
+                else if constexpr (std::is_same_v<T, TapeReset>)
+                {
+                    m_tapeReconstructor.reset();
+                }
             },
             item);
         ++itemsProcessed;
@@ -3040,6 +2994,14 @@ void SymbolContext::processLevel2(const Level2& p_level2)
     m_activity.recordL2(QDateTime::currentMSecsSinceEpoch());
     m_level2Receiver.onReceivedNewLevel2(p_level2);
 
+    const Level2Row& bestBid = p_level2.m_bids[0];
+    const Level2Row& bestAsk = p_level2.m_asks[0];
+    if (bestBid.m_price > 0.0 && bestAsk.m_price > 0.0)
+    {
+        m_level2Bbo = BarTapeReconstructor::Bbo{bestBid.m_price, bestAsk.m_price};
+        m_level2BboReceivedMs = QDateTime::currentMSecsSinceEpoch();
+    }
+
     QWriteLocker lock(&m_displaySnapshot.lock);
     if (!m_displaySnapshot.processedReplayTime.has_value() ||
         p_level2.m_timeStamp > *m_displaySnapshot.processedReplayTime)
@@ -3048,13 +3010,57 @@ void SymbolContext::processLevel2(const Level2& p_level2)
     }
 }
 
+std::optional<BarTapeReconstructor::Bbo> SymbolContext::currentTapeBbo() const
+{
+    // Prefer the Level 2 book while it is alive; fall back to the quote stream otherwise.
+    if (m_level2Bbo.has_value() && QDateTime::currentMSecsSinceEpoch() - m_level2BboReceivedMs <=
+                                       TapeReconstructionConstants::LEVEL2_BBO_MAX_AGE_MS)
+    {
+        return m_level2Bbo;
+    }
+    if (m_quoteBbo.has_value())
+    {
+        return m_quoteBbo;
+    }
+    return m_level2Bbo;
+}
+
+void SymbolContext::processBar(const Bar& p_bar)
+{
+    barReceiver.onReceivedNewBar(p_bar);
+
+    if (MainApp::getDataSourceMode() == DataSourceMode::Live)
+    {
+        const std::optional<Trade> print =
+            m_tapeReconstructor.onBar(symbol, p_bar, currentTapeBbo(), MainApp::getCurrentAppTime());
+        if (print.has_value())
+        {
+            processTrade(print.value());
+        }
+    }
+
+    if (p_bar.getBarStatus() == Bar::BarStatus::Closed)
+    {
+        m_barAggregator.onNewBar(symbol, p_bar);
+    }
+    else if (p_bar.getBarStatus() == Bar::BarStatus::Open)
+    {
+        m_barAggregator.onBarUpdated(symbol, p_bar);
+    }
+}
+
 void SymbolContext::processTrade(const Trade& p_trade)
 {
     m_activity.recordTrade(QDateTime::currentMSecsSinceEpoch());
     if (isWithinSupportedIntradayBarSession(p_trade.m_timestamp))
     {
-        m_liveBarAccumulator.onNewTrade(symbol, p_trade);
-        m_live10sBarAccumulator.onNewTrade(symbol, p_trade);
+        // In live/sim the TradeStation bar stream owns the 1m candle (see processBar). Live trades here
+        // are reconstructed from that same bar stream, so feeding them back into an accumulator would
+        // build a duplicate candle.
+        if (MainApp::getDataSourceMode() != DataSourceMode::Live)
+        {
+            m_liveBarAccumulator.onNewTrade(symbol, p_trade);
+        }
     }
     else
     {
@@ -5300,7 +5306,6 @@ void MainAlgo::releaseSymbolContextRef(const QString& symbol)
             int removed = m_symbolContexts.remove(symbol);
             OBJ_ASSUME_EQUAL(removed, 1);
         }
-        m_lastQuoteTradeBySymbol.remove(symbol);
         sc->deleteLater();
         DEBUG << "SymbolContext destroyed for" << symbol;
     }
@@ -5942,7 +5947,6 @@ void MainAlgo::deleteAllSymbolContext()
     // Clear the displayed pointer first
     m_currentDisplayedSymbolContext = nullptr;
     m_controlSymbolLeaseExpirations.clear();
-    m_lastQuoteTradeBySymbol.clear();
 
     // Delete instruments directly (not deleteLater) so that each BarCache destructor
     // queues closeDatabase to DatabaseThread before the next createAndSetDisplayedSymbolContext
@@ -5984,10 +5988,10 @@ void MainAlgo::stopAllStrategies()
     INFO << "All strategies stopped";
 }
 
-void MainAlgo::restoreStrategiesState()
+void MainAlgo::restoreStrategiesState(const bool p_resumeRunning)
 {
     OBJ_ASSUME_EQUAL(QThread::currentThread(), &thread);
-    m_strategyManager->restoreStrategiesState();
+    m_strategyManager->restoreStrategiesState(p_resumeRunning);
 }
 
 void MainAlgo::createAndSetDisplayedSymbolContext(const QString& p_symbol)

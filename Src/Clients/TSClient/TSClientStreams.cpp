@@ -121,7 +121,7 @@ QPointer<StreamPositions> TSClient::openStreamPositions(const QString& accountID
         query.addQueryItem("changes", changes ? "true" : "false");
 
         QNetworkRequest request =
-            buildNetworkRequest(QString(TSClientEndpoints::STREAM_POSITIONS).arg(accountID), query);
+            buildStreamRequest(QString(TSClientEndpoints::STREAM_POSITIONS).arg(accountID), query);
 
         QMetaObject::invokeMethod(
             this,
@@ -198,7 +198,7 @@ QPointer<StreamOrders> TSClient::openStreamOrders(const QString& accountID)
     else
     {
         const QString endpoint = QString(TSClientEndpoints::STREAM_ORDERS).arg(accountID);
-        QNetworkRequest request = buildNetworkRequest(endpoint);
+        QNetworkRequest request = buildStreamRequest(endpoint);
 
         QMetaObject::invokeMethod(
             this,
@@ -278,7 +278,7 @@ QPointer<StreamBars> TSClient::openStreamBars(const QString& symbol,
 
         const QString endpoint = QString(TSClientEndpoints::STREAM_BARS).arg(symbol);
         QUrlQuery query = buildBarsQuery(interval, unit, barsback, sessionTemplate);
-        QNetworkRequest request = buildNetworkRequest(endpoint, query);
+        QNetworkRequest request = buildStreamRequest(endpoint, query);
 
         QMetaObject::invokeMethod(
             this,
@@ -388,7 +388,7 @@ TSClient::openStreamMarketDepthAggregate(const QString& symbol, unsigned int dep
         DEBUG << "Opening live StreamMarketDepthAggregate for" << symbol;
 
         QNetworkRequest request =
-            buildNetworkRequest(QString(TSClientEndpoints::STREAM_MARKET_DEPTH_AGGREGATE).arg(symbol), query);
+            buildStreamRequest(QString(TSClientEndpoints::STREAM_MARKET_DEPTH_AGGREGATE).arg(symbol), query);
 
         QMetaObject::invokeMethod(
             this,
@@ -470,7 +470,7 @@ QPointer<StreamQuote> TSClient::openStreamQuote(const QStringList& symbols)
         DEBUG << "Opening live StreamQuote for" << symbols.size() << "symbols";
 
         const QString endpoint = QString(TSClientEndpoints::STREAM_QUOTES).arg(symbols.join(','));
-        QNetworkRequest request = buildNetworkRequest(endpoint);
+        QNetworkRequest request = buildStreamRequest(endpoint);
 
         QMetaObject::invokeMethod(
             this,

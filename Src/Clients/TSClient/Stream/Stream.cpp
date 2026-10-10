@@ -50,7 +50,7 @@ Stream::~Stream()
 
     m_heartbeatTimer.stop();
 
-    if (!s_isShuttingDown)
+    if (!s_isShuttingDown && !m_finished)
     {
         emit streamClosed(StreamError::Closed, QStringLiteral("Stream intentionally closed"));
     }
@@ -66,7 +66,8 @@ void Stream::onReplyFinished()
     disconnect(m_networkReply, &QNetworkReply::finished, this, &Stream::onReplyFinished);
 
     // HTTP errors may leave their final JSON body unread, without a trailing newline.
-    const QByteArray remainingData = m_networkReply->readAll();
+    // Aborted replies (heartbeat timeout) are already closed and have nothing left to read.
+    const QByteArray remainingData = m_networkReply->isReadable() ? m_networkReply->readAll() : QByteArray();
     if (!remainingData.isEmpty())
     {
         emit newAmountOfDataReceived(remainingData.size());
@@ -85,7 +86,7 @@ void Stream::onReplyFinished()
     // 1) Heartbeat timeout (m_receivedTimeoutError == true)
     // 2) JSON error received from server (m_streamError has been set by intermediate class)
     // 3) Network error reported by QNetworkReply (timeout, disconnection, etc)
-    StreamError errorType = StreamError::NoError; // Default to no error
+    StreamError errorType = StreamError::Failed; // Unexpected EOF unless a more specific reason is known.
     if (m_streamError.has_value())
     {
         errorType = m_streamError.value();
@@ -103,11 +104,19 @@ void Stream::onReplyFinished()
     QMetaEnum metaEnum = QMetaEnum::fromType<QNetworkReply::NetworkError>();
     QString errorName = metaEnum.valueToKey(error);
 
-    QString description = "Timeout: " + (m_receivedTimeoutError ? QString("true") : QString("false")) +
-                          " JSON Error: " + m_jsonErrorString + ". Network error: " + errorName + " (" +
-                          m_networkReply->errorString() + ")";
+    const QMetaEnum reasonEnum = QMetaEnum::fromType<StreamError>();
+    QString description =
+        QStringLiteral("Reason: %1").arg(QString::fromLatin1(reasonEnum.valueToKey(static_cast<int>(errorType))));
+    if (!m_jsonErrorString.isEmpty())
+    {
+        description += QStringLiteral(". JSON error: ") + m_jsonErrorString;
+    }
+    if (error != QNetworkReply::NoError)
+    {
+        description += QStringLiteral(". Network error: ") + errorName + " (" + m_networkReply->errorString() + ")";
+    }
 
-    DEBUG << "Stream finished with error:" << description;
+    DEBUG << "Stream finished:" << description;
 
     m_heartbeatTimer.stop();
 

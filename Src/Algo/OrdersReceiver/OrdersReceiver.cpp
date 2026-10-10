@@ -41,6 +41,7 @@ OrdersReceiver::OrdersReceiver(const QString& p_account, QObject* p_parent)
         m_loadedLatencies[orderId] = latencyMs;
     }
 
+    connect(&m_streamRetryTimer, &QTimer::timeout, this, &OrdersReceiver::createOrdersStream);
     createOrdersStream();
 }
 
@@ -64,8 +65,20 @@ OrdersReceiver::~OrdersReceiver()
 
 void OrdersReceiver::createOrdersStream()
 {
+    if (m_streamStopped)
+    {
+        return;
+    }
+    m_receivedEndSnapshot = false;
+    m_snapshotOrders.clear();
     m_stream = TSClient::getInstance()->openStreamOrders(m_account);
-    Q_CHECK_PTR(m_stream);
+    if (m_stream.isNull())
+    {
+        WARNING << "Could not open orders stream for account" << m_account << "- scheduling reconnect";
+        beginRecovery(QStringLiteral("Orders"), m_account);
+        m_streamRetryTimer.start();
+        return;
+    }
 
     connect(m_stream, &StreamOrders::newOrderReceived, this, &OrdersReceiver::onReceivedNewOrder);
     connect(m_stream, &StreamOrders::endSnapshotReceived, this, &OrdersReceiver::onEndSnapshotReceived);
@@ -75,11 +88,17 @@ void OrdersReceiver::createOrdersStream()
             this,
             [this](Stream::StreamError reason, QString message)
             {
+                if (m_streamStopped)
+                {
+                    return;
+                }
                 if (reason != Stream::StreamError::Closed)
                 {
-                    CRITICAL << "Orders stream for account" << m_account << "finished with error:" << message;
+                    WARNING << "Orders stream disconnected for account" << m_account << message
+                            << "- scheduling reconnect";
+                    beginRecovery(QStringLiteral("Orders"), m_account);
                     m_stream = nullptr;
-                    QTimer::singleShot(300, this, &OrdersReceiver::createOrdersStream);
+                    m_streamRetryTimer.start();
                 }
                 else
                 {
@@ -143,6 +162,7 @@ void OrdersReceiver::onReceivedNewOrder(Order order)
 
 void OrdersReceiver::onEndSnapshotReceived()
 {
+    completeRecovery();
     DEBUG << "Received EndSnapshot for Orders stream";
     m_receivedEndSnapshot = true;
 
@@ -172,6 +192,7 @@ void OrdersReceiver::validateSnapshotOrders()
 
 void OrdersReceiver::stopStream(const QString& p_account)
 {
+    stopRecovery();
     Q_UNUSED(p_account);
     if (m_stream != nullptr)
     {

@@ -23,7 +23,6 @@ Q_DECLARE_LOGGING_CATEGORY(LiveBarAccumulatorLog)
  * ## Bar timestamp convention
  * Bars are timestamped with the **open time** of the interval (Databento convention):
  *   - For 60s interval: a trade at 09:31:04 contributes to bar timestamped 09:31:00
- *   - For 10s interval: a trade at 09:31:04 contributes to bar timestamped 09:31:00
  *   - A trade at 09:31:10 contributes to bar timestamped 09:31:10
  *
  * ## Threading
@@ -39,7 +38,7 @@ class LiveBarAccumulator : public QObject
   public:
     /**
      * @param p_parent         Qt parent
-     * @param p_intervalSeconds Bar interval in seconds (default 60 = 1 minute, 10 = 10 seconds)
+     * @param p_intervalSeconds Bar interval in seconds (default 60 = 1 minute)
      */
     explicit LiveBarAccumulator(QObject* p_parent = nullptr, int p_intervalSeconds = 60);
 
@@ -99,7 +98,7 @@ class LiveBarAccumulator : public QObject
 
     /**
      * @brief Compute the bar open-time for a given trade timestamp.
-     * Floors to the current interval boundary (e.g. 10-second or 1-minute).
+     * Floors to the current interval boundary (e.g. 1-minute).
      */
     [[nodiscard]] QDateTime barOpenTimeForTrade(const QDateTime& p_tradeTime) const;
 

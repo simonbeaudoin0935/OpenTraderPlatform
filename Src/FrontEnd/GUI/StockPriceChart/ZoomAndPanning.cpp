@@ -1067,11 +1067,10 @@ void StockPriceChart::handleVerticalZoom(QWheelEvent* event,
     {
         // When over MACD chart, only zoom MACD Y-axis
         QCPRange range = m_macdAxisRect->axis(QCPAxis::atRight)->range();
-        const qreal center = range.center();
 
         const qreal newSize = range.size() * zoomFactor;
-        const qreal newMin = center - (newSize / 2);
-        const qreal newMax = center + (newSize / 2);
+        const qreal newMin = -newSize / 2;
+        const qreal newMax = newSize / 2;
 
         m_macdAxisRect->axis(QCPAxis::atRight)->setRange(newMin, newMax);
         m_customPlot->replot(QCustomPlot::rpQueuedReplot);
@@ -1127,10 +1126,9 @@ void StockPriceChart::handleBothAxesZoom(QWheelEvent* event,
     {
         // When over MACD chart, only zoom MACD Y axis
         QCPRange range = m_macdAxisRect->axis(QCPAxis::atRight)->range();
-        const qreal center = range.center();
         const qreal newSize = range.size() * zoomFactor;
-        const qreal newMin = center - (newSize / 2);
-        const qreal newMax = center + (newSize / 2);
+        const qreal newMin = -newSize / 2;
+        const qreal newMax = newSize / 2;
         m_macdAxisRect->axis(QCPAxis::atRight)->setRange(newMin, newMax);
         m_customPlot->replot(QCustomPlot::rpQueuedReplot);
     }
@@ -1194,8 +1192,7 @@ void StockPriceChart::checkAutoTimeFrame()
     if (indexToBar.isEmpty())
         return;
 
-    static const QVector<TimeFrame> TF_ORDER = {TimeFrame::TEN_SECONDS,
-                                                TimeFrame::ONE_MINUTE,
+    static const QVector<TimeFrame> TF_ORDER = {TimeFrame::ONE_MINUTE,
                                                 TimeFrame::FIVE_MINUTES,
                                                 TimeFrame::FIFTEEN_MINUTES,
                                                 TimeFrame::THIRTY_MINUTES,
@@ -1205,13 +1202,9 @@ void StockPriceChart::checkAutoTimeFrame()
                                                 TimeFrame::ONE_WEEK,
                                                 TimeFrame::ONE_MONTH};
 
-    // Convert the x-axis range (in index slots) to minutes for threshold comparison.
-    // For 10s TF: each slot = 10 seconds → multiply by 10/60 to get minutes.
-    // For minute+ TFs: each slot = 1 minute (no conversion needed).
+    // The x-axis range is measured in minute slots.
     const TimeFrame currentTf = chartToolbar->getCurrentTimeFrame();
-    const double slotsVisible = m_customPlot->xAxis->range().size();
-    const int minutesVisible =
-        static_cast<int>(slotsVisible * static_cast<double>(BarUtils::secondsPerBar(currentTf)) / 60.0);
+    const int minutesVisible = static_cast<int>(m_customPlot->xAxis->range().size());
 
     // Read thresholds from settings (with defaults) for each timeframe.
     // These define the ideal visible time range for each timeframe.
@@ -1221,7 +1214,6 @@ void StockPriceChart::checkAutoTimeFrame()
     {
         // Default thresholds (lower, upper) in minutes
         static const QMap<TimeFrame, std::pair<int, int>> defaults = {
-            {TimeFrame::TEN_SECONDS, {0, 30}},
             {TimeFrame::ONE_MINUTE, {30, 150}},
             {TimeFrame::FIVE_MINUTES, {120, 480}},
             {TimeFrame::FIFTEEN_MINUTES, {240, 960}},

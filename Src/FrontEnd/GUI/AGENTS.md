@@ -11,6 +11,13 @@ The GUI directory contains the full-featured Qt Widgets desktop interface for Op
 
 For complete architectural details, see `Doc/FRONTEND.md`.
 
+Order entry defers the live/sim order-route lookup until TradeStation is
+authenticated and no authentication flow is in progress. A queued
+`authStateChanged` connection resumes the deferred lookup after authentication.
+If a request fails while unauthenticated, its Intelligent-route fallback is not
+marked as loaded, allowing a retry after authentication succeeds. Other route
+lookup failures retain the explicitly logged Intelligent fallback.
+
 ## Directory Organization
 
 The GUI folder is organized into logical subfolders:

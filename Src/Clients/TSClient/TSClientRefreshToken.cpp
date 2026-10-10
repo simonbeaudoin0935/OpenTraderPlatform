@@ -22,39 +22,93 @@ void TSClient::launchAuthProcess()
 
 void TSClient::onAuthFinished(bool success, AuthToken token, QString reason)
 {
-    m_authenticated = success;
+    OBJ_ASSUME_EQUAL(QThread::currentThread(), &m_thread);
+    if (!success)
+    {
+        finishAuth(false, reason);
+        return;
+    }
+
+    // Keep m_authInProgress set until the client credentials saved by the login dialog are reloaded.
+    auto* storage = new SecureStorage(this);
+    ClientToken::loadFromSettingsAsync(*storage,
+                                       [this, storage, token, reason](const ClientToken& p_clientToken)
+                                       {
+                                           storage->deleteLater();
+                                           m_clientToken = p_clientToken;
+                                           if (!m_clientToken.isValid())
+                                           {
+                                               finishAuth(false,
+                                                          QString("Could not reload TradeStation credentials "
+                                                                  "from the %1")
+                                                              .arg(SecureStorage::backendName()));
+                                               return;
+                                           }
+
+                                           m_authToken = token;
+                                           m_apiKey = m_authToken.getAccessToken();
+                                           scheduleNextRefreshFromCurrentToken("onAuthFinished");
+                                           finishAuth(true, reason);
+                                       });
+}
+
+void TSClient::finishAuth(const bool p_success, const QString& p_reason)
+{
+    m_authenticated = p_success;
     m_authInProgress = false;
 
-    if (success)
+    if (p_success)
     {
-        m_clientToken = ClientToken::loadFromSettings();
-        if (!m_clientToken.isValid())
+        qCInfo(TSClientLog) << Q_FUNC_INFO << "Auth successful : " << p_reason;
+        emit authStateChanged(true, AuthStateReason::ValidToken, p_reason);
+        return;
+    }
+
+    qCWarning(TSClientLog) << Q_FUNC_INFO << "Auth unsucessful : " << p_reason;
+    emit authStateChanged(false, AuthStateReason::AuthFailed, p_reason);
+}
+
+void TSClient::persistRefreshedToken()
+{
+    OBJ_ASSUME_EQUAL(QThread::currentThread(), &m_thread);
+    OBJ_ASSUME_TRUE(m_refreshInProgress);
+
+    auto* storage = new SecureStorage(this);
+    AuthToken::storeToSettingsAsync(
+        *storage,
+        m_authToken,
+        [this, storage](const bool p_stored)
         {
-            m_authenticated = false;
-            const QString storageError =
-                QString("Could not reload TradeStation credentials from the %1").arg(SecureStorage::backendName());
-            qCWarning(TSClientLog) << storageError;
-            emit authStateChanged(false, AuthStateReason::AuthFailed, storageError);
-            return;
-        }
+            storage->deleteLater();
+            m_refreshInProgress = false;
 
-        // Update the TSClient's auth token and API key
-        m_authToken = token;
-        m_apiKey = m_authToken.getAccessToken();
+            if (!p_stored)
+            {
+                m_authenticated = false;
+                const QString storageError = QString("Could not save refreshed tokens in the %1; "
+                                                     "unlock the selected storage backend and reconnect")
+                                                 .arg(SecureStorage::backendName());
+                qCWarning(TSClientLog) << storageError;
+                emit authStateChanged(false, AuthStateReason::AuthFailed, storageError);
+                return;
+            }
 
-        // Schedule the next token refresh (20 minutes - 5 seconds)
-        scheduleNextRefreshFromCurrentToken("onAuthFinished");
+            // Kick a new refresh in 20min - 5s
+            scheduleNextRefreshFromCurrentToken("refreshAccessToken/success");
 
-        qCInfo(TSClientLog) << Q_FUNC_INFO << "Auth successful : " << reason;
-    }
-    else
-    {
-        qCWarning(TSClientLog) << Q_FUNC_INFO << "Auth unsucessful : " << reason;
-    }
-
-    // Determine the auth state reason based on success/failure
-    AuthStateReason authReason = m_authenticated ? AuthStateReason::ValidToken : AuthStateReason::AuthFailed;
-    emit authStateChanged(m_authenticated, authReason, reason);
+            QTimer::singleShot(
+                1000,
+                this,
+                [this]()
+                {
+                    // Based on observation, if we propagate the good new immediately and start
+                    // making calls, the remote server will send us back an error 401 (unauthenticated)
+                    // for the first API call. Almost as if the refresh did not properly propagade in their system.
+                    // Wait a second on our end before propagating the successful authentification as to delay
+                    // making the first API call.
+                    emit authStateChanged(true, AuthStateReason::RefreshSuccessful, "Auth token refresh successful");
+                });
+        });
 }
 
 void TSClient::onAuthHandlerDestroyed()
@@ -172,35 +226,10 @@ void TSClient::refreshAccessToken()
                 // Keep a rotated token in memory even if persistence fails.
                 m_authToken = newToken;
                 m_apiKey = m_authToken.getAccessToken();
-                if (!AuthToken::storeToSettings(m_authToken))
-                {
-                    m_authenticated = false;
-                    const QString storageError = QString("Could not save refreshed tokens in the %1; "
-                                                         "unlock the selected storage backend and reconnect")
-                                                     .arg(SecureStorage::backendName());
-                    qCWarning(TSClientLog) << storageError;
-                    emit authStateChanged(false, AuthStateReason::AuthFailed, storageError);
-                    break;
-                }
-
-                // Kick a new refresh in 20min - 5s
-                scheduleNextRefreshFromCurrentToken("refreshAccessToken/success");
-
-                QTimer::singleShot(
-                    1000,
-                    this,
-                    [this]()
-                    {
-                        // Based on observation, if we propagate the good new immediately and start
-                        // making calls, the remote server will send us back an error 401 (unauthenticated)
-                        // for the first API call. Almost as if the refresh did not properly propagade in their system.
-                        // Wait a second on our end before propagating the successful authentification as to delay
-                        // making the first API call.
-                        emit authStateChanged(true,
-                                              AuthStateReason::RefreshSuccessful,
-                                              "Auth token refresh successful");
-                    });
-                break;
+                // m_refreshInProgress stays set until the async keyring write completes.
+                reply->deleteLater();
+                persistRefreshedToken();
+                return;
             }
 
             // timeout

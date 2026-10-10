@@ -155,9 +155,7 @@ namespace ChartTimeUtils
     /**
  * @brief Convert a bar timestamp to a chart index relative to index 0.
  *
- * For minute-granularity timeframes (1m and above), each chart index unit
- * corresponds to one trading minute. For sub-minute timeframes (TEN_SECONDS),
- * each unit corresponds to one 10-second slot.
+ * Each chart index unit corresponds to one trading minute.
  *
  * @param p_barTimestamp   The bar's open timestamp
  * @param p_index0Timestamp The index 0 anchor timestamp (from computeIndex0Timestamp)
@@ -166,15 +164,8 @@ namespace ChartTimeUtils
  */
     inline int timestampToChartIndex(const QDateTime& p_barTimestamp,
                                      const QDateTime& p_index0Timestamp,
-                                     TimeFrame p_tf = TimeFrame::ONE_MINUTE)
+                                     TimeFrame = TimeFrame::ONE_MINUTE)
     {
-        if (p_tf == TimeFrame::TEN_SECONDS)
-        {
-            // 10-second slot granularity
-            return static_cast<int>(
-                (toAbsoluteTradingSecond(p_barTimestamp) - toAbsoluteTradingSecond(p_index0Timestamp)) / 10);
-        }
-        // Minute granularity (default, works for all TFs >= 1m)
         return static_cast<int>(toAbsoluteTradingMinute(p_barTimestamp) - toAbsoluteTradingMinute(p_index0Timestamp));
     }
 
@@ -187,37 +178,8 @@ namespace ChartTimeUtils
  * @return Bar open timestamp for the given index
  */
     inline QDateTime
-    chartIndexToTimestamp(int p_index, const QDateTime& p_index0Timestamp, TimeFrame p_tf = TimeFrame::ONE_MINUTE)
+    chartIndexToTimestamp(int p_index, const QDateTime& p_index0Timestamp, TimeFrame = TimeFrame::ONE_MINUTE)
     {
-        if (p_tf == TimeFrame::TEN_SECONDS)
-        {
-            // 10-second slot granularity: index is in 10-second units
-            const qint64 absoluteSecond =
-                toAbsoluteTradingSecond(p_index0Timestamp) + static_cast<qint64>(p_index) * 10;
-            constexpr qint64 secondsPerDay = static_cast<qint64>(BarsConstants::MINUTE_BARS_PER_DAY) * 60; // 54 000
-
-            qint64 tradingDay;
-            int secondOfDay;
-            if (absoluteSecond >= 0)
-            {
-                tradingDay = absoluteSecond / secondsPerDay;
-                secondOfDay = static_cast<int>(absoluteSecond % secondsPerDay);
-            }
-            else
-            {
-                tradingDay = (absoluteSecond - secondsPerDay + 1) / secondsPerDay;
-                secondOfDay = static_cast<int>(absoluteSecond - tradingDay * secondsPerDay);
-            }
-
-            const QDate date = detail::tradingDayToDate(tradingDay);
-            const int hour = TradingHours::TIME_FIRST_CANDLE_EARLY_PRE_MARKET_SESSION.hour() + secondOfDay / 3600;
-            const int minute = (secondOfDay % 3600) / 60;
-            const int second = secondOfDay % 60;
-
-            return QDateTime(date, QTime(hour, minute, second), TradingHours::MARKET_TIMEZONE);
-        }
-
-        // Minute granularity (default)
         const qint64 absoluteMinute = toAbsoluteTradingMinute(p_index0Timestamp) + p_index;
         constexpr qint64 barsPerDay = BarsConstants::MINUTE_BARS_PER_DAY;
 

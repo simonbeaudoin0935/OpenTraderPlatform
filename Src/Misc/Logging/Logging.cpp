@@ -64,6 +64,11 @@ static std::mutex g_filterMutex;
 // coloredMessageOutput() never needs to take a lock just for the timestamp.
 static std::atomic<qint64> g_replayTimeMs{-1};
 
+static std::atomic<int> g_criticalLogCount{0};
+
+static std::mutex g_recentCriticalLogsMutex;
+static QStringList g_recentCriticalLogs;
+
 // Forward declaration
 void printStackTrace();
 
@@ -202,6 +207,22 @@ void LogBroadcaster::setGuiLoggingEnabled(bool enabled)
 bool LogBroadcaster::isGuiLoggingEnabled()
 {
     return g_guiLoggingEnabled.load(std::memory_order_relaxed);
+}
+
+int LogBroadcaster::criticalLogCount()
+{
+    return g_criticalLogCount.load(std::memory_order_relaxed);
+}
+
+QStringList LogBroadcaster::recentCriticalLogs()
+{
+    std::lock_guard<std::mutex> lock(g_recentCriticalLogsMutex);
+    return g_recentCriticalLogs;
+}
+
+QString LogBroadcaster::currentLogFilePath()
+{
+    return g_logFile.fileName();
 }
 
 // LoggingConfig implementation
@@ -420,6 +441,20 @@ void coloredMessageOutput(QtMsgType type, const QMessageLogContext& context, con
             writeBestEffort(g_logFileFd, plainBytes.constData(), static_cast<size_t>(plainBytes.size()));
         if (g_stdioFd >= 0)
             writeBestEffort(g_stdioFd, coloredBytes.constData(), static_cast<size_t>(coloredBytes.size()));
+    }
+
+    if (type == QtCriticalMsg && !inputCategory)
+    {
+        {
+            std::lock_guard<std::mutex> lock(g_recentCriticalLogsMutex);
+            g_recentCriticalLogs.append(plainMsg.trimmed());
+            while (g_recentCriticalLogs.size() > AsyncLogger::RECENT_CRITICAL_LOG_CAPACITY)
+            {
+                g_recentCriticalLogs.removeFirst();
+            }
+        }
+        const int count = g_criticalLogCount.fetch_add(1, std::memory_order_relaxed) + 1;
+        emit LogBroadcaster::instance().criticalLogCountChanged(count);
     }
 
     // Filtered paths: check category/level before writing to stdout and GUI.

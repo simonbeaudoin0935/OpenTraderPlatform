@@ -4,7 +4,7 @@
   round trips across supported timeframes; native/source timeframe selection;
   intraday/day/week/month timestamp alignment; sparse OHLCV aggregation skipping
   placeholders; historical/live aggregation parity for two complete periods.
-- [LiveBarAccumulatorTests.cpp](LiveBarAccumulatorTests.cpp): 10s/60s boundary
+- [LiveBarAccumulatorTests.cpp](LiveBarAccumulatorTests.cpp): 60s boundary
   flooring including UTC and millisecond inputs; OHLCV updates and close/reset;
   independent symbols; gaps without invented trades; next-session rollover.
 

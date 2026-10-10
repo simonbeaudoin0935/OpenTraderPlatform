@@ -185,6 +185,7 @@ Crash isolation is now process-based, not thread-based:
 - a segmentation fault in the child does **not** corrupt host memory
 - the host marks that strategy as failed and keeps the rest of the platform running
 - the strategy log still captures protocol/runtime errors plus any final `stdout`/`stderr` output that was flushed before exit
+- the **Strategy Failed** dialog appends the strategy's last words to the generic reason (socket disconnect / exit code). It shows the last `LOG_LEVEL_ERROR` message the strategy sent, or the last 5 `stderr` lines if there is none. Either is used only if received in the last 10 s. After a socket EOF, the host waits up to 500 ms for the process to exit so the exit code and final `stderr` are included. Strategies that exit early (for example `failStartupAndClose(...)`) should log their reason at ERROR level before exiting.
 
 ---
 

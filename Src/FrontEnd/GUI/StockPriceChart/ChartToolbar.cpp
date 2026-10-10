@@ -597,29 +597,6 @@ void ChartToolbar::setCurrentTimeFrame(TimeFrame timeframe)
     }
 }
 
-void ChartToolbar::setTenSecondTimeFrameEnabled(const bool enabled)
-{
-    if (m_tenSecondTimeFrameEnabled == enabled)
-    {
-        return;
-    }
-
-    const TimeFrame previous = getCurrentTimeFrame();
-    const TimeFrame next = (!enabled && previous == TimeFrame::TEN_SECONDS) ? TimeFrame::ONE_MINUTE : previous;
-
-    {
-        const QSignalBlocker blocker(comboBox);
-        m_tenSecondTimeFrameEnabled = enabled;
-        populateTimeFrames();
-        setCurrentTimeFrame(next);
-    }
-
-    if (getCurrentTimeFrame() != previous)
-    {
-        emit timeFrameChanged(getCurrentTimeFrame());
-    }
-}
-
 bool ChartToolbar::isAutoTimeFrameEnabled() const
 {
     return autoCheckBox->isChecked();
@@ -1502,10 +1479,6 @@ void ChartToolbar::setHardToBorrow(bool active)
 void ChartToolbar::populateTimeFrames()
 {
     comboBox->clear();
-    if (m_tenSecondTimeFrameEnabled)
-    {
-        comboBox->addItem("10s", static_cast<int>(TimeFrame::TEN_SECONDS));
-    }
     comboBox->addItem("1m", static_cast<int>(TimeFrame::ONE_MINUTE));
     comboBox->addItem("5m", static_cast<int>(TimeFrame::FIVE_MINUTES));
     comboBox->addItem("15m", static_cast<int>(TimeFrame::FIFTEEN_MINUTES));

@@ -99,8 +99,27 @@ class LogBroadcaster : public QObject
     static void setGuiLoggingEnabled(bool enabled);
     static bool isGuiLoggingEnabled();
 
+    // Number of CRIT lines written to the platform log since startup.
+    // Counted regardless of category/level filters. Thread-safe.
+    static int criticalLogCount();
+
+    // Most recent CRIT lines (plain log format), oldest first, at most
+    // AsyncLogger::RECENT_CRITICAL_LOG_CAPACITY entries. Thread-safe.
+    static QStringList recentCriticalLogs();
+
+    // Absolute path of this invocation's platform log file (empty before initLogging()).
+    static QString currentLogFilePath();
+
   signals:
     void logMessageReceived(const QString& message);
+
+    /**
+     * @brief A CRIT line was just written to the platform log
+     * Thread context: Emitted from whichever thread logged the message; connect with
+     * Qt::QueuedConnection to receive it on the GUI thread
+     * @param p_count Total number of CRIT lines since startup
+     */
+    void criticalLogCountChanged(int p_count);
 
   private:
     LogBroadcaster() : QObject(nullptr) {}

@@ -80,6 +80,11 @@ namespace
     constexpr int kTerminateTimeoutMs = 2000;
     constexpr int kSocketWriteTimeoutMs = 5000;
     constexpr std::size_t kSocketReadChunkSize = 4096;
+    // Failure diagnostics: how long to wait for a child to exit after socket EOF, how old a
+    // strategy error/stderr line may be to still count as the failure cause, and stderr tail size.
+    constexpr int kDisconnectExitGraceMs = 500;
+    constexpr qint64 kFailureDiagnosticsWindowMs = 10000;
+    constexpr qsizetype kFailureStderrTailLines = 5;
 
     [[nodiscard]] bool waitForFd(const int p_fd, const short p_events, const int p_timeoutMs)
     {
@@ -1192,8 +1197,40 @@ void ProcessStrategyRuntimeBackend::captureProcessStream(const QProcess::Process
     const QString text = QString::fromUtf8(output);
     for (const QString& line: text.split('\n', Qt::SkipEmptyParts))
     {
-        m_logger->log(level, prefix + line.trimmed());
+        const QString trimmed = line.trimmed();
+        m_logger->log(level, prefix + trimmed);
+        if (p_channel == QProcess::StandardError && !trimmed.isEmpty())
+        {
+            m_recentStderrLines.append(trimmed);
+            while (m_recentStderrLines.size() > kFailureStderrTailLines)
+            {
+                m_recentStderrLines.removeFirst();
+            }
+            m_lastStderrTimer.start();
+        }
     }
+}
+
+QString ProcessStrategyRuntimeBackend::buildFailureDiagnostics(const QString& p_baseMessage) const
+{
+    if (!m_lastStrategyError.isEmpty() && m_lastStrategyErrorTimer.isValid() &&
+        m_lastStrategyErrorTimer.elapsed() <= kFailureDiagnosticsWindowMs)
+    {
+        // Structured runtime.fail() reasons often duplicate the last ERROR log; don't repeat them.
+        if (p_baseMessage.contains(m_lastStrategyError))
+        {
+            return {};
+        }
+        return QStringLiteral("\n\nLast error reported by strategy:\n") + m_lastStrategyError;
+    }
+
+    if (!m_recentStderrLines.isEmpty() && m_lastStderrTimer.isValid() &&
+        m_lastStderrTimer.elapsed() <= kFailureDiagnosticsWindowMs)
+    {
+        return QStringLiteral("\n\nLast stderr output:\n") + m_recentStderrLines.join('\n');
+    }
+
+    return {};
 }
 
 void ProcessStrategyRuntimeBackend::drainInboundSocket()
@@ -1271,12 +1308,19 @@ void ProcessStrategyRuntimeBackend::handleInboundPayload(const std::span<const s
     switch (envelope.payload_case())
     {
     case Protocol::StrategyToHostEnvelope::kStrategyLog:
+    {
+        const QString message = QString::fromStdString(envelope.strategy_log().message());
+        if (envelope.strategy_log().level() == Protocol::LOG_LEVEL_ERROR)
+        {
+            m_lastStrategyError = message;
+            m_lastStrategyErrorTimer.start();
+        }
         if (m_logger)
         {
-            m_logger->log(toQtMessageType(envelope.strategy_log().level()),
-                          QString::fromStdString(envelope.strategy_log().message()));
+            m_logger->log(toQtMessageType(envelope.strategy_log().level()), message);
         }
         break;
+    }
 
     case Protocol::StrategyToHostEnvelope::kHeartbeat:
         qDebug(StrategyManagerLog) << "Received heartbeat reply from strategy:" << m_strategyID
@@ -1957,12 +2001,16 @@ void ProcessStrategyRuntimeBackend::reportFailure(const QString& p_errorMessage)
         return;
     }
     m_failureReported = true;
-    m_lastFailureMessage = p_errorMessage;
 
-    qCritical(StrategyManagerLog) << "External strategy process failed:" << m_strategyID << p_errorMessage;
+    // Pull any stderr still buffered so the diagnostics reflect the child's last words.
+    captureProcessStream(QProcess::StandardError);
+    const QString errorMessage = p_errorMessage + buildFailureDiagnostics(p_errorMessage);
+    m_lastFailureMessage = errorMessage;
+
+    qCritical(StrategyManagerLog) << "External strategy process failed:" << m_strategyID << errorMessage;
     if (m_logger)
     {
-        m_logger->log(QtCriticalMsg, p_errorMessage);
+        m_logger->log(QtCriticalMsg, errorMessage);
     }
 
     if (m_mainAlgo == nullptr || m_mainAlgo->getStrategyManager() == nullptr)
@@ -1973,7 +2021,7 @@ void ProcessStrategyRuntimeBackend::reportFailure(const QString& p_errorMessage)
     StrategyManager* const strategyManager = m_mainAlgo->getStrategyManager();
     QMetaObject::invokeMethod(
         strategyManager,
-        [strategyManager, strategyID = m_strategyID, errorMessage = p_errorMessage]()
+        [strategyManager, strategyID = m_strategyID, errorMessage]()
         { strategyManager->markStrategyFailed(strategyID, errorMessage); },
         Qt::QueuedConnection);
 }
@@ -1990,10 +2038,18 @@ void ProcessStrategyRuntimeBackend::scheduleSocketCleanup(const QString& p_error
                        [this, errorMessage = p_errorMessage]()
                        {
                            cleanupSocketResources();
-                           if (!m_shutdownRequested && !errorMessage.isEmpty())
+                           if (m_shutdownRequested || errorMessage.isEmpty())
                            {
-                               reportFailure(errorMessage);
+                               return;
                            }
+
+                           // Socket EOF usually precedes process exit. Give the child a brief grace
+                           // period so the finished handler can report the exit code and final stderr.
+                           if (m_process.state() != QProcess::NotRunning)
+                           {
+                               [[maybe_unused]] const bool exited = m_process.waitForFinished(kDisconnectExitGraceMs);
+                           }
+                           reportFailure(errorMessage);
                        });
 }
 
@@ -2424,6 +2480,10 @@ void ProcessStrategyRuntimeBackend::resetStartAttemptState()
     m_waitingForStartReady = false;
     m_startReadyReceived = false;
     m_lastFailureMessage.clear();
+    m_lastStrategyError.clear();
+    m_lastStrategyErrorTimer.invalidate();
+    m_recentStderrLines.clear();
+    m_lastStderrTimer.invalidate();
 }
 
 void ProcessStrategyRuntimeBackend::markShutdownRequested()

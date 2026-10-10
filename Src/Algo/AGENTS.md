@@ -17,6 +17,12 @@ The Algo directory contains the trading algorithm coordination logic and various
 - `OrdersReceiver/` — Order tracking via StreamOrders
 - `StreamReceiver/` — Base class for all receivers
 
+Brokerage receivers log disconnects (including server `GoAway`) as WARN and
+retry after 300 ms. Recovery completes only on `EndSnapshot`; if it remains
+incomplete for 15 seconds, one CRIT is emitted for that outage while retries
+continue. Repeated disconnects do not restart this deadline. Intentional stop
+cancels both retry and recovery timers.
+
 ## MainAlgo (MainAlgo.h/cpp)
 
 **Role**: Central coordinator for all trading algorithm operations
@@ -246,7 +252,6 @@ public:
     BarReceiver barReceiver;
     Level2Receiver m_level2Receiver;
     LiveBarAccumulator m_liveBarAccumulator;     // 1-minute bar accumulator
-    LiveBarAccumulator m_live10sBarAccumulator;  // 10-second bar accumulator
     BarAggregator m_barAggregator;
 
 private:
@@ -365,7 +370,19 @@ connect(&m_barAggregator, &BarAggregator::barClosed,
 
 **Role**: Receive and process bar data
 
-`BarReceiver` processes bars produced by `LiveBarAccumulator`. Bars come from `DBClient::newTrade` → MainAlgo routing → `SymbolContext::enqueueTrade()` → `LiveBarAccumulator::onNewTrade()` (via DirectConnection in drain loop). This path is identical for both live and replay modes.
+`BarReceiver` publishes exactly one source of 1m bars per mode:
+- **Replay**: `DBClient::newTrade` → `MainAlgo::routeTrade` → `SymbolContext::enqueueTrade()` → `LiveBarAccumulator::onNewTrade()` (drain loop) → `BarReceiver`.
+- **Live/Sim**: TradeStation bar stream → `MainAlgo::routeBar` → `SymbolContext::enqueueBar()` → `processBar()` (drain loop) → `BarReceiver` and `BarAggregator` (Closed → `onNewBar`, Open → `onBarUpdated`). Live trades are **not** fed into the 1m accumulator (they are derived from this same bar stream, so they would build a duplicate candle).
+
+### Live/Sim Time & Sales Reconstruction (`TapeReconstructor/BarTapeReconstructor`)
+
+TradeStation exposes no trade tape, so live/sim Time & Sales is rebuilt from the bar stream:
+
+- `SymbolContext::processBar` feeds each 1m update to `BarTapeReconstructor::onBar`. The `TotalVolume` delta versus the previous update becomes one print (size = delta, price = bar close, timestamp = receive time); a new minute prints that bar's whole volume. The print then goes through `processTrade` (Time & Sales snapshot, `receivedNewTrade` for strategies).
+- The first update, and the first update after the bar stream reopens (`enqueueTapeReset`), is only a baseline. Updates for an older minute or with non-increasing volume are ignored (TradeStation re-sends stale bars around rollover).
+- Side: close ≥ ask → `TradeSide::Bid` (buy aggressor), close ≤ bid → `TradeSide::Ask`, else `None` (same convention as Databento). The BBO comes from the latest Level 2 top of book while it is fresher than `TapeReconstructionConstants::LEVEL2_BBO_MAX_AGE_MS`, otherwise from the quote stream (`MainAlgo::routeQuote` → `enqueueQuoteBbo`). The quote stream no longer produces trades.
+- Limitations: each print batches every trade between two bar updates (~0.25–3 s), intermediate prices are lost, and BBO timing skew can mislabel some prints.
+- Replay is unchanged: real Databento trades drive Time & Sales.
 
 ```cpp
 class BarReceiver : public StreamReceiver {

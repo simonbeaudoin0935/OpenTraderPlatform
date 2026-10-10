@@ -174,7 +174,13 @@ m_replayEngine->pauseReplay();
 **Centralized logging system with categories**
 
 **Architecture**:
-- **LogBroadcaster**: Singleton that distributes log messages
+- **LogBroadcaster**: Singleton that distributes log messages. It also counts every
+  `CRIT` line written to the platform log, before category filters are applied
+  (`criticalLogCount()`, signal `criticalLogCountChanged(int)`, emitted from the logging
+  thread; connect queued) and keeps the last `AsyncLogger::RECENT_CRITICAL_LOG_CAPACITY`
+  (10) lines (`recentCriticalLogs()`). The GUI shows the count as the `CRIT: N` badge in
+  the top bar; clicking it opens a popup with those recent lines. On close, a reminder
+  dialog with the log path pops up when N > 0.
 - **LoggingConfig**: Singleton for runtime configuration
 - Category-based filtering
 - Multiple outputs (file, console, GUI)
@@ -339,6 +345,23 @@ SecureStorage::deleteValuesSync("OpenTraderPlatform", keys, 5000);
 if (!SecureStorage::isSecureStorageAvailable()) {
     qCWarning() << "QKeychain not available, using fallback";
 }
+```
+
+**Threading rule (deadlock hazard)**: the `*Sync` methods always run the keyring job on the GUI
+thread and block the caller with `BlockingQueuedConnection`. Call them **only from the GUI thread**.
+Worker threads (TSClient, DBClient, MainAlgo, ...) must use the async instance API instead, because
+the GUI thread frequently blocks on those workers (e.g. `TSClient::setMode`, `DBClient::disconnectLive`)
+and a sync keyring call from the worker then deadlocks both threads:
+
+```cpp
+auto* storage = new SecureStorage(this);              // created on the worker thread
+storage->retrieveValues(service, {"a", "b"},
+    [storage](const QMap<QString, QString>& p_values) { // runs on the worker thread
+        storage->deleteLater();
+        // empty map on any failure
+    });
+storage->storeValues(service, {{"a", "1"}, {"b", "2"}}, // written in order
+    [storage](bool p_ok) { storage->deleteLater(); });
 ```
 
 **Security Notes**:

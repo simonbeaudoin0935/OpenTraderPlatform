@@ -4,6 +4,8 @@
 #include <QString>
 #include <QSettings>
 #include <QLoggingCategory>
+#include <QMap>
+#include <functional>
 
 #include "SecureStorage.h"
 
@@ -37,7 +39,15 @@ class ClientToken
     static bool storeToSettings(const ClientToken& token);
     static void clearSettings();
 
+    /**
+     * @brief Async load; never blocks the calling thread on the GUI-thread keyring executor
+     * @param p_callback Called on p_storage's thread
+     */
+    static void loadFromSettingsAsync(SecureStorage& p_storage, std::function<void(const ClientToken&)> p_callback);
+
   private:
+    [[nodiscard]] static ClientToken fromStoredCredentials(const QMap<QString, QString>& p_credentials);
+
     QString clientId;
     QString clientSecret;
 
