@@ -503,20 +503,29 @@ void DBClient::loadApiKey()
         return;
     }
 
-    SecureStorage storage;
-    const QMap<QString, QString> values = storage.retrieveValuesSync(k_service, {k_keyName});
-    m_apiKey = values.value(k_keyName);
+    // Keyring jobs run on the GUI thread. Never block this thread on them: the GUI thread makes
+    // BlockingQueuedConnection calls into DBClient (e.g. enterReplayMode -> disconnectLive), and a
+    // sync read here deadlocks startup when replay mode is restored.
+    auto* storage = new SecureStorage(this);
+    storage->retrieveValue(k_service,
+                           k_keyName,
+                           [this, storage](const QString& p_value)
+                           {
+                               OBJ_ASSUME_EQUAL(QThread::currentThread(), thread());
+                               storage->deleteLater();
+                               m_apiKey = p_value;
 
-    if (m_apiKey.isEmpty())
-    {
-        INFO << "No Databento API key found in secure storage";
-    }
-    else
-    {
-        INFO << "Databento API key loaded from secure storage";
-    }
+                               if (m_apiKey.isEmpty())
+                               {
+                                   INFO << "No Databento API key found in secure storage";
+                               }
+                               else
+                               {
+                                   INFO << "Databento API key loaded from secure storage";
+                               }
 
-    emit connectionStateChanged(!m_apiKey.isEmpty());
+                               emit connectionStateChanged(!m_apiKey.isEmpty());
+                           });
 }
 
 void DBClient::storeApiKey(const QString& p_apiKey)
@@ -529,23 +538,31 @@ void DBClient::storeApiKey(const QString& p_apiKey)
 
     OBJ_ASSUME_FALSE(p_apiKey.isEmpty());
 
-    SecureStorage storage;
-    const bool success = storage.storeValuesSync(k_service, {{k_keyName, p_apiKey}});
+    // Async for the same reason as loadApiKey(): never block DBClient on the GUI thread.
+    auto* storage = new SecureStorage(this);
+    storage->storeValue(k_service,
+                        k_keyName,
+                        p_apiKey,
+                        [this, storage, p_apiKey](const bool p_success)
+                        {
+                            OBJ_ASSUME_EQUAL(QThread::currentThread(), thread());
+                            storage->deleteLater();
 
-    if (success)
-    {
-        m_apiKey = p_apiKey;
-        INFO << "Databento API key saved to secure storage";
-        emit connectionStateChanged(true);
-    }
-    else
-    {
-        WARNING << "Failed to save Databento API key to secure storage";
-        emit credentialStorageFailed(QString("Could not save the Databento API key in the %1. "
-                                             "Unlock the selected storage backend in Credentials and try again. "
-                                             "No fallback to another backend will be used.")
-                                         .arg(SecureStorage::backendName()));
-    }
+                            if (p_success)
+                            {
+                                m_apiKey = p_apiKey;
+                                INFO << "Databento API key saved to secure storage";
+                                emit connectionStateChanged(true);
+                                return;
+                            }
+
+                            WARNING << "Failed to save Databento API key to secure storage";
+                            emit credentialStorageFailed(
+                                QString("Could not save the Databento API key in the %1. "
+                                        "Unlock the selected storage backend in Credentials and try again. "
+                                        "No fallback to another backend will be used.")
+                                    .arg(SecureStorage::backendName()));
+                        });
 }
 
 bool DBClient::hasApiKey() const
