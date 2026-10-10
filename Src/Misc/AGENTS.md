@@ -347,6 +347,23 @@ if (!SecureStorage::isSecureStorageAvailable()) {
 }
 ```
 
+**Threading rule (deadlock hazard)**: the `*Sync` methods always run the keyring job on the GUI
+thread and block the caller with `BlockingQueuedConnection`. Call them **only from the GUI thread**.
+Worker threads (TSClient, DBClient, MainAlgo, ...) must use the async instance API instead, because
+the GUI thread frequently blocks on those workers (e.g. `TSClient::setMode`, `DBClient::disconnectLive`)
+and a sync keyring call from the worker then deadlocks both threads:
+
+```cpp
+auto* storage = new SecureStorage(this);              // created on the worker thread
+storage->retrieveValues(service, {"a", "b"},
+    [storage](const QMap<QString, QString>& p_values) { // runs on the worker thread
+        storage->deleteLater();
+        // empty map on any failure
+    });
+storage->storeValues(service, {{"a", "1"}, {"b", "2"}}, // written in order
+    [storage](bool p_ok) { storage->deleteLater(); });
+```
+
 **Security Notes**:
 - **ALWAYS** compile with QKeychain for production
 - Never log retrieved values

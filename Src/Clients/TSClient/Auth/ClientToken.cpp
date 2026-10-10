@@ -27,14 +27,23 @@ QString ClientToken::toString() const
 
 ClientToken ClientToken::loadFromSettings()
 {
-    ClientToken token;
     SecureStorage storage;
+    return fromStoredCredentials(storage.retrieveValuesSync("TradeStation", {"client_id", "client_secret"}));
+}
 
-    // Load client credentials from SecureStorage synchronously
-    QMap<QString, QString> credentials = storage.retrieveValuesSync("TradeStation", {"client_id", "client_secret"});
+void ClientToken::loadFromSettingsAsync(SecureStorage& p_storage, std::function<void(const ClientToken&)> p_callback)
+{
+    p_storage.retrieveValues("TradeStation",
+                             {"client_id", "client_secret"},
+                             [p_callback = std::move(p_callback)](const QMap<QString, QString>& p_credentials)
+                             { p_callback(fromStoredCredentials(p_credentials)); });
+}
 
-    token.clientId = credentials.value("client_id");
-    token.clientSecret = credentials.value("client_secret");
+ClientToken ClientToken::fromStoredCredentials(const QMap<QString, QString>& p_credentials)
+{
+    ClientToken token;
+    token.clientId = p_credentials.value("client_id");
+    token.clientSecret = p_credentials.value("client_secret");
 
     if (token.clientId.isEmpty() || token.clientSecret.isEmpty())
     {

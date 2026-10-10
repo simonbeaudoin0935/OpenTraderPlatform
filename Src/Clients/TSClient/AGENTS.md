@@ -377,6 +377,7 @@ namespace TSClientEndpoints {
 4. **TLS only** - All communication over HTTPS/WSS
 5. **Token refresh** - Automatic refresh minimizes token exposure time
 6. **No insecure fallback** - Qt6Keychain is mandatory; keyring failures are reported, never redirected to file storage
+7. **Async keyring on the TSClient thread** - Startup credential loading (YubiKey backend), post-login `ClientToken` reload and refreshed-token persistence use `AuthToken::loadFromSettingsAsync` / `storeToSettingsAsync` and `ClientToken::loadFromSettingsAsync`. Sync keyring calls from the TSClient thread deadlock when the GUI thread is blocked on TSClient (e.g. `setMode`). `m_authInProgress` / `m_refreshInProgress` stay set until the keyring callback completes.
 
 ## Rate Limiting
 

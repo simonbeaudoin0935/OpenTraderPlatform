@@ -8,6 +8,7 @@
 #include <QStandardPaths>
 #include <QThread>
 #include <QTimer>
+#include <memory>
 
 #include "Assume.h"
 #include "CONSTANTS.h"
@@ -298,6 +299,80 @@ void SecureStorage::retrieveValue(const QString& service,
 {
     OBJ_ASSUME_TRUE(callback);
     startJob(service, key, {}, Operation::Read, [callback](Result p_result) { callback(p_result.value); });
+}
+
+void SecureStorage::startJobsInOrder(const QString& p_service,
+                                     const QList<std::pair<QString, QString>>& p_keyValues,
+                                     const Operation p_operation,
+                                     std::function<void(bool, const QMap<QString, QString>&)> p_callback)
+{
+    OBJ_ASSUME_FALSE(p_service.isEmpty());
+    OBJ_ASSUME_FALSE(p_keyValues.isEmpty());
+    OBJ_ASSUME_TRUE(p_callback);
+
+    auto values = std::make_shared<QMap<QString, QString>>();
+    auto step = std::make_shared<std::function<void(qsizetype)>>();
+    // The step holds itself weakly; each pending job callback keeps it alive until the chain ends.
+    *step = [this, p_service, p_keyValues, p_operation, p_callback, values, weakStep = std::weak_ptr(step)](
+                const qsizetype p_index)
+    {
+        if (p_index >= p_keyValues.size())
+        {
+            p_callback(true, *values);
+            return;
+        }
+
+        const auto& [key, value] = p_keyValues.at(p_index);
+        OBJ_ASSUME_FALSE(key.isEmpty());
+        auto self = weakStep.lock();
+        OBJ_ASSUME_TRUE(self != nullptr);
+        startJob(p_service,
+                 key,
+                 value,
+                 p_operation,
+                 [self, values, p_callback, key, p_index](const Result& p_result)
+                 {
+                     if (p_result.error != QKeychain::NoError && p_result.error != QKeychain::EntryNotFound)
+                     {
+                         p_callback(false, {});
+                         return;
+                     }
+                     if (p_result.error == QKeychain::NoError)
+                     {
+                         values->insert(key, p_result.value);
+                     }
+                     (*self)(p_index + 1);
+                 });
+    };
+    (*step)(0);
+}
+
+void SecureStorage::retrieveValues(const QString& service,
+                                   const QStringList& keys,
+                                   std::function<void(const QMap<QString, QString>&)> callback)
+{
+    OBJ_ASSUME_TRUE(callback);
+    QList<std::pair<QString, QString>> keyValues;
+    for (const QString& key: keys)
+    {
+        keyValues.append({key, QString()});
+    }
+    startJobsInOrder(service,
+                     keyValues,
+                     Operation::Read,
+                     [callback](const bool p_success, const QMap<QString, QString>& p_values)
+                     { callback(p_success ? p_values : QMap<QString, QString>{}); });
+}
+
+void SecureStorage::storeValues(const QString& service,
+                                const QList<std::pair<QString, QString>>& orderedKeyValues,
+                                std::function<void(bool)> callback)
+{
+    OBJ_ASSUME_TRUE(callback);
+    startJobsInOrder(service,
+                     orderedKeyValues,
+                     Operation::Write,
+                     [callback](const bool p_success, const QMap<QString, QString>&) { callback(p_success); });
 }
 
 void SecureStorage::deleteValue(const QString& service, const QString& key, std::function<void(bool)> callback)

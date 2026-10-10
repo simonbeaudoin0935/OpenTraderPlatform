@@ -118,19 +118,42 @@ TSClient::TSClient() : m_authenticated(false), m_refreshInProgress(false), m_net
 
     if (SecureStorage::activeBackend() == SecureStorage::Backend::YubiKey)
     {
-        connect(&m_thread, &QThread::started, this, &TSClient::loadStartupCredentials);
+        connect(&m_thread, &QThread::started, this, &TSClient::loadStartupCredentialsAsync);
     }
     else
     {
-        loadStartupCredentials();
+        // Still on the GUI thread here (thread not started), so a sync keyring read cannot deadlock.
+        applyStartupCredentials(ClientToken::loadFromSettings(), AuthToken::loadFromSettings());
     }
 }
 
-void TSClient::loadStartupCredentials()
+void TSClient::loadStartupCredentialsAsync()
 {
-    m_clientToken = ClientToken::loadFromSettings();
-    m_authToken = AuthToken::loadFromSettings();
+    OBJ_ASSUME_EQUAL(QThread::currentThread(), &m_thread);
+    auto* storage = new SecureStorage(this);
+    ClientToken::loadFromSettingsAsync(*storage,
+                                       [this, storage](const ClientToken& p_clientToken)
+                                       {
+                                           AuthToken::loadFromSettingsAsync(
+                                               *storage,
+                                               [this, storage, p_clientToken](const AuthToken& p_authToken)
+                                               {
+                                                   storage->deleteLater();
+                                                   if (m_authInProgress)
+                                                   {
+                                                       qCInfo(TSClientLog) << "Interactive login started before stored "
+                                                                              "credentials loaded; ignoring them";
+                                                       return;
+                                                   }
+                                                   applyStartupCredentials(p_clientToken, p_authToken);
+                                               });
+                                       });
+}
 
+void TSClient::applyStartupCredentials(const ClientToken& p_clientToken, const AuthToken& p_authToken)
+{
+    m_clientToken = p_clientToken;
+    m_authToken = p_authToken;
 
     // If the token is invalid/absent, we need to perform an authentification with the popup
     if (!m_clientToken.isValid() || !m_authToken.isValid())

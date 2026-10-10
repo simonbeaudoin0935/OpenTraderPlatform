@@ -6,8 +6,12 @@
 #include <QJsonObject>
 #include <QSettings>
 #include <QLoggingCategory>
+#include <QMap>
+#include <functional>
 
 #include "CONSTANTS.h"
+
+class SecureStorage;
 
 Q_DECLARE_LOGGING_CATEGORY(TSAuthTokenLog);
 
@@ -93,12 +97,27 @@ class AuthToken
     static bool storeToSettings(const AuthToken& token);
     static void clearSettings();
 
+    /**
+     * @brief Async load; never blocks the calling thread on the GUI-thread keyring executor
+     * @param p_storage Storage object whose thread receives the callback (must outlive the job or be its parent)
+     */
+    static void loadFromSettingsAsync(SecureStorage& p_storage, std::function<void(const AuthToken&)> p_callback);
+    /**
+     * @brief Async store (refresh token first); never blocks the calling thread
+     * @param p_callback Called on p_storage's thread with overall success
+     */
+    static void
+    storeToSettingsAsync(SecureStorage& p_storage, const AuthToken& p_token, std::function<void(bool)> p_callback);
+
     // Static validation methods
     static bool validateScope(const QString& scope);
     static bool validateTokenType(const QString& tokenType);
     static bool validateExpiresIn(int expiresIn);
 
   private:
+    [[nodiscard]] static AuthToken fromStoredSecrets(const QMap<QString, QString>& p_secureTokens);
+    [[nodiscard]] static bool storeMetadata(const AuthToken& p_token);
+
     QString accessToken;
     QString refreshToken;
     QString idToken;

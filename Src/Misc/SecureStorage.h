@@ -6,6 +6,7 @@
 #include <QMap>
 #include <QStringList>
 #include <functional>
+#include <utility>
 
 #include <qt6keychain/keychain.h>
 
@@ -62,6 +63,29 @@ class SecureStorage : public QObject
      * @param callback Callback function called with success status
      */
     void deleteValue(const QString& service, const QString& key, std::function<void(bool)> callback = nullptr);
+
+    /**
+     * @brief Retrieve multiple values (async; never blocks the calling thread)
+     *
+     * Prefer this over retrieveValuesSync() on worker threads: sync calls block on the GUI thread,
+     * which deadlocks if the GUI thread is itself blocked on that worker (BlockingQueuedConnection).
+     * @param service The service name
+     * @param keys Keys to read, in order
+     * @param callback Called on this object's thread with the found values (empty map if any read failed)
+     */
+    void retrieveValues(const QString& service,
+                        const QStringList& keys,
+                        std::function<void(const QMap<QString, QString>&)> callback);
+
+    /**
+     * @brief Store multiple values in the given order (async; never blocks the calling thread)
+     * @param service The service name
+     * @param orderedKeyValues Key/value pairs written sequentially; stops at the first failure
+     * @param callback Called on this object's thread with overall success
+     */
+    void storeValues(const QString& service,
+                     const QList<std::pair<QString, QString>>& orderedKeyValues,
+                     std::function<void(bool)> callback);
 
     /**
      * @brief Store multiple values securely (synchronous)
@@ -124,4 +148,8 @@ class SecureStorage : public QObject
                   const QString& p_value,
                   Operation p_operation,
                   std::function<void(Result)> p_callback);
+    void startJobsInOrder(const QString& p_service,
+                          const QList<std::pair<QString, QString>>& p_keyValues,
+                          Operation p_operation,
+                          std::function<void(bool, const QMap<QString, QString>&)> p_callback);
 };

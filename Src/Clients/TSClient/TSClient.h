@@ -395,7 +395,12 @@ class TSClient final : public QObject
     [[nodiscard]] QNetworkAccessManager* activeNetworkManager() const;
     void onNetworkConnectionStalled(const QString& p_description);
     void scheduleNextRefreshFromCurrentToken(const char* p_context);
-    void loadStartupCredentials();
+    // Credential keyring access from the TSClient thread must be async: sync SecureStorage calls block on
+    // the GUI thread, which deadlocks when the GUI thread is blocked on TSClient (e.g. setMode()).
+    void loadStartupCredentialsAsync();
+    void applyStartupCredentials(const ClientToken& p_clientToken, const AuthToken& p_authToken);
+    void finishAuth(bool p_success, const QString& p_reason);
+    void persistRefreshedToken();
 
 
     // Auth and refresh stuff implemented in TSClientRefreshToken.cpp
