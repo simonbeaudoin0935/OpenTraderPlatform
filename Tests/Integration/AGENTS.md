@@ -3,6 +3,7 @@
 Inherit [root test rules](../AGENTS.md). Register targets/scenarios in
 [CMakeLists.txt](CMakeLists.txt).
 
+- [Algo](Algo/AGENTS.md): `RiskManager` evaluation/persistence, `local-integration`.
 - [Clients](Clients/AGENTS.md): local stream/client lifecycle, `local-integration`.
 - [Core](Core/AGENTS.md): launched platform startup, `local-integration`.
 - [Strategy](Strategy/AGENTS.md): local SDK/host socket exchange, `local-integration`.

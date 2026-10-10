@@ -56,9 +56,14 @@ different validation outcomes and must be reported separately.
 
 Temporary-SQLite BarCache persistence/range and SDK socket fragmentation tests
 now exist under Integration/Core and Integration/Strategy, including warmup
-merge protection against older Open/Null history. Actual provider backfill
-overlap/coalescing, full host child-process transport, and provider error/retry integration remain to be
-implemented. Read-only API and separately gated paper-order lifecycle scenarios
-are compiled but authenticated execution has not been verified. Keep order
-opt-in, bounded cleanup, exact account checks, and cleanup restricted to IDs
-returned by the test's placement.
+merge protection against older Open/Null history. `RiskManager` evaluation,
+drawdown/cooldown lifecycle, and SQLite runtime-state persistence are now
+covered under Integration/Algo. Actual provider backfill
+overlap/coalescing, full host child-process transport, provider error/retry
+integration, `OrderEmulator` replay fill/position emulation, `MainAlgo`'s
+risk-gate wiring (`processPlaceOrder`), and the GUI `RiskStatusWidget`/strategy
+user-confirm preview-bracket flow remain to be implemented. Read-only API and
+separately gated paper-order lifecycle scenarios are compiled but
+authenticated execution has not been verified. Keep order opt-in, bounded
+cleanup, exact account checks, and cleanup restricted to IDs returned by the
+test's placement.
