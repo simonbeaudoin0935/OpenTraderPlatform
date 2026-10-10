@@ -6,6 +6,11 @@ Stream closure messages include the actual `StreamError` reason (e.g. `GoAway`);
 network details are included only for a real network error. A completed stream
 emits its closure once, not again as an intentional close during destruction.
 
+Byte accounting ignores empty response bodies: locally blocked requests and
+network failures may legitimately contain no data. The request handler logs the
+actual failure instead. Authentication-related order-route lookup failures are
+warnings; other route errors retain their existing severity.
+
 TSClient is the singleton class for TradeStation API communication in OpenTraderPlatform. It handles authentication, account/order REST requests, order/position WebSocket streams, and live/sim market-data endpoints/streams.
 
 ## Overview

@@ -60,6 +60,18 @@ OrderEntryWidget::OrderEntryWidget(QWidget* p_parent)
 {
     setupUI();
     setupStyles();
+    connect(
+        TSClient::getInstance(),
+        &TSClient::authStateChanged,
+        this,
+        [this](bool p_authenticated, TSClient::AuthStateReason, const QString&)
+        {
+            if (p_authenticated)
+            {
+                updateInteractivity();
+            }
+        },
+        Qt::QueuedConnection);
     updateInteractivity();
 }
 
@@ -96,7 +108,8 @@ void OrderEntryWidget::updateInteractivity()
             m_routeCombo->setCurrentIndex(0);
         }
     }
-    else if (!m_routesLoaded && !m_routesRequestInFlight)
+    else if (!m_routesLoaded && !m_routesRequestInFlight && TSClient::getInstance()->isAuthenticated() &&
+             !TSClient::getInstance()->isAuthInProgress())
     {
         refreshOrderRoutes();
     }
@@ -806,6 +819,11 @@ void OrderEntryWidget::refreshOrderRoutes()
         return;
     }
 
+    if (!TSClient::getInstance()->isAuthenticated() || TSClient::getInstance()->isAuthInProgress())
+    {
+        return;
+    }
+
     m_routesRequestInFlight = true;
     {
         QSignalBlocker blocker(m_routeCombo);
@@ -859,7 +877,8 @@ void OrderEntryWidget::refreshOrderRoutes()
                 populateLiveRoutes(stockRoutes);
             }
 
-            m_routesLoaded = true;
+            // A transient auth failure must not make the fallback permanent.
+            m_routesLoaded = p_result.has_value() || TSClient::getInstance()->isAuthenticated();
             m_routesRequestInFlight = false;
             updateInteractivity();
         });

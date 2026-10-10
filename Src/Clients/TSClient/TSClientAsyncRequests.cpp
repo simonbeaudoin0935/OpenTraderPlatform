@@ -799,6 +799,11 @@ QFuture<std::expected<QVector<OrderRoute>, TSClient::Error>> TSClient::getOrderR
                             promise.addResult(std::unexpected(Error::Timeout));
                             break;
 
+                        case QNetworkReply::AuthenticationRequiredError:
+                            WARNING << "getOrderRoutes() waiting for authentication:" << reply->errorString();
+                            promise.addResult(std::unexpected(Error::Other));
+                            break;
+
                         default:
                             CRITICAL << "getOrderRoutes() failed:" << reply->errorString() << reply->error();
                             promise.addResult(std::unexpected(Error::Other));

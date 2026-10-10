@@ -314,7 +314,9 @@ void TSClient::processNewAmountOfDataReceived(size_t bytesReceived)
 {
     if (bytesReceived == 0)
     {
-        CRITICAL << "No data received in this readyRead/finished";
+        // Empty bodies occur on locally blocked requests and network failures.
+        // The request handler reports the actual failure; byte accounting is not an error.
+        return;
     }
     else
     {
