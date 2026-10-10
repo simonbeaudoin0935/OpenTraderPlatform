@@ -330,10 +330,12 @@ void MacdIndicator::updateAxisRange(const QVector<double>& macdValues,
     if (qFuzzyCompare(minValue + 1.0, maxValue + 1.0))
     {
         const double delta = qMax(0.1, qAbs(minValue) * 0.1);
-        m_axisRange.setAutomaticRange(m_yAxis, QCPRange(minValue - delta, maxValue + delta));
+        const double extent = qAbs(minValue) + delta;
+        m_axisRange.setAutomaticRange(m_yAxis, QCPRange(-extent, extent));
         return;
     }
 
     const double padding = qMax(0.02, (maxValue - minValue) * 0.15);
-    m_axisRange.setAutomaticRange(m_yAxis, QCPRange(minValue - padding, maxValue + padding));
+    const double extent = qMax(qAbs(minValue), qAbs(maxValue)) + padding;
+    m_axisRange.setAutomaticRange(m_yAxis, QCPRange(-extent, extent));
 }

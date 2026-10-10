@@ -1067,11 +1067,10 @@ void StockPriceChart::handleVerticalZoom(QWheelEvent* event,
     {
         // When over MACD chart, only zoom MACD Y-axis
         QCPRange range = m_macdAxisRect->axis(QCPAxis::atRight)->range();
-        const qreal center = range.center();
 
         const qreal newSize = range.size() * zoomFactor;
-        const qreal newMin = center - (newSize / 2);
-        const qreal newMax = center + (newSize / 2);
+        const qreal newMin = -newSize / 2;
+        const qreal newMax = newSize / 2;
 
         m_macdAxisRect->axis(QCPAxis::atRight)->setRange(newMin, newMax);
         m_customPlot->replot(QCustomPlot::rpQueuedReplot);
@@ -1127,10 +1126,9 @@ void StockPriceChart::handleBothAxesZoom(QWheelEvent* event,
     {
         // When over MACD chart, only zoom MACD Y axis
         QCPRange range = m_macdAxisRect->axis(QCPAxis::atRight)->range();
-        const qreal center = range.center();
         const qreal newSize = range.size() * zoomFactor;
-        const qreal newMin = center - (newSize / 2);
-        const qreal newMax = center + (newSize / 2);
+        const qreal newMin = -newSize / 2;
+        const qreal newMax = newSize / 2;
         m_macdAxisRect->axis(QCPAxis::atRight)->setRange(newMin, newMax);
         m_customPlot->replot(QCustomPlot::rpQueuedReplot);
     }
