@@ -99,7 +99,7 @@ It is responsible for:
   (message-only, rich-text capable, rendered in chart top-left overlay),
   managed-bracket upsert/cancel, place-order, cancel-order
 - capturing `stdout` / `stderr`
-- turning process/socket failures into `StrategyManager::markStrategyFailed(...)`
+- turning process/socket failures into `StrategyManager::markStrategyFailed(...)`. `reportFailure(...)` appends `buildFailureDiagnostics()`: the last strategy ERROR log, or else the recent `stderr` tail, if received within 10 s. The Strategy Failed dialog then shows the real cause instead of only "socket disconnected" / "exit code N".
 
 When editing runtime behavior, start here:
 
