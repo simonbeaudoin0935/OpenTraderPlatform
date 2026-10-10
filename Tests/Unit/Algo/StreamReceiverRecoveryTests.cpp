@@ -32,7 +32,7 @@ class TestStreamReceiver : public StreamReceiver
     }
 };
 
-class StreamRecoveryTests : public QObject
+class StreamReceiverRecoveryTests : public QObject
 {
     Q_OBJECT
 
@@ -87,5 +87,5 @@ class StreamRecoveryTests : public QObject
     }
 };
 
-QTEST_GUILESS_MAIN(StreamRecoveryTests)
-#include "StreamRecoveryTests.moc"
+QTEST_GUILESS_MAIN(StreamReceiverRecoveryTests)
+#include "StreamReceiverRecoveryTests.moc"
