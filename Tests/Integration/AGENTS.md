@@ -6,6 +6,7 @@ Inherit [root test rules](../AGENTS.md). Register targets/scenarios in
 - [Algo](Algo/AGENTS.md): `RiskManager` evaluation/persistence, `local-integration`.
 - [Clients](Clients/AGENTS.md): local stream/client lifecycle, `local-integration`.
 - [Core](Core/AGENTS.md): launched platform startup, `local-integration`.
+- [Core/Replay](Core/Replay/AGENTS.md): `OrderEmulator` replay order/position lifecycle coverage.
 - [Strategy](Strategy/AGENTS.md): local SDK/host socket exchange, `local-integration`.
 - [TradeStation](TradeStation/AGENTS.md): opt-in external Simulation API,
   `tradestation-api`, never interchangeable with local integration.

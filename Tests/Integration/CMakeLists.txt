@@ -40,6 +40,11 @@ target_link_libraries(BarCachePersistenceTests PRIVATE OpenTraderPlatformCommon 
 add_test(NAME BarCachePersistenceTests COMMAND BarCachePersistenceTests)
 set_tests_properties(BarCachePersistenceTests PROPERTIES TIMEOUT 45 LABELS "local-integration")
 
+add_executable(OrderEmulatorTests Core/Replay/OrderEmulatorTests.cpp)
+target_link_libraries(OrderEmulatorTests PRIVATE OpenTraderPlatformCommon Qt6::Test)
+add_test(NAME OrderEmulatorTests COMMAND OrderEmulatorTests)
+set_tests_properties(OrderEmulatorTests PROPERTIES TIMEOUT 45 LABELS "local-integration")
+
 add_executable(RiskManagerTests Algo/RiskManagerTests.cpp)
 target_link_libraries(RiskManagerTests PRIVATE OpenTraderPlatformCommon Qt6::Test)
 add_test(NAME RiskManagerTests COMMAND RiskManagerTests)
